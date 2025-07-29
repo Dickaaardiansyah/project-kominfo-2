@@ -1,0 +1,87 @@
+{
+  "Barrel Jellyfish": {
+    "nama_indonesia": "Ubur-Ubur Barrel",
+    "habitat": "Laut terbuka",
+    "konsumsi": "Tidak umum dikonsumsi"
+  },
+  "Blue Jellyfish": {
+    "nama_indonesia": "Ubur-Ubur Biru",
+    "habitat": "Laut dangkal dan terbuka",
+    "konsumsi": "Tidak umum dikonsumsi"
+  },
+  "Catfish": {
+    "nama_indonesia": "Ikan Lele",
+    "habitat": "Sungai, rawa, dan kolam",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Chanos Chanos": {
+    "nama_indonesia": "Bandeng",
+    "habitat": "Laut dangkal dan estuari",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Compass Jellyfish": {
+    "nama_indonesia": "Ubur-Ubur Kompas",
+    "habitat": "Laut dangkal",
+    "konsumsi": "Tidak umum dikonsumsi"
+  },
+  "Eleutheronema Tetradactylum": {
+    "nama_indonesia": "Senangin",
+    "habitat": "Perairan pantai berlumpur",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Johnius Trachycephalus": {
+    "nama_indonesia": "Ikan Kurisi",
+    "habitat": "Muara sungai dan perairan pantai",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Lions Mane Jellyfish": {
+    "nama_indonesia": "Ubur-Ubur Surai Singa",
+    "habitat": "Perairan dingin laut dalam",
+    "konsumsi": "Tidak umum dikonsumsi"
+  },
+  "Mauve Stinger Jellyfish": {
+    "nama_indonesia": "Ubur-Ubur Mauve Stinger",
+    "habitat": "Laut dalam subtropis dan tropis",
+    "konsumsi": "Tidak umum dikonsumsi"
+  },
+  "Moon Jellyfish": {
+    "nama_indonesia": "Ubur-Ubur Bulan",
+    "habitat": "Laut dangkal dan teluk",
+    "konsumsi": "Tidak umum dikonsumsi"
+  },
+  "Nibea Albiflora": {
+    "nama_indonesia": "Ikan Putihan",
+    "habitat": "Perairan pantai dan muara",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Oreochromis Mossambicus": {
+    "nama_indonesia": "Ikan Mujair",
+    "habitat": "Danau, sungai, dan kolam",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Oreochromis Niloticus": {
+    "nama_indonesia": "Ikan Nila",
+    "habitat": "Danau, sungai, dan kolam",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Osphronemus Goramy": {
+    "nama_indonesia": "Ikan Gurami",
+    "habitat": "Sungai dan kolam air tawar",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Rastrelliger Faughni": {
+    "nama_indonesia": "Ikan Kembung Lelaki",
+    "habitat": "Laut dangkal dan pesisir",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Upeneus Moluccensis": {
+    "nama_indonesia": "Ikan Kurisi Merah",
+    "habitat": "Dasar laut berpasir",
+    "konsumsi": "Aman dikonsumsi"
+  },
+  "Cupang": {
+    "nama_indonesia": "Ikan Cupang",
+    "habitat": "Sawah, rawa, dan kolam air tenang",
+    "konsumsi": "Tidak umum dikonsumsi (lebih sering dipelihara)"
+  }
+}

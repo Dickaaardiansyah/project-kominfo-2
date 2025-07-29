@@ -1,0 +1,21 @@
+### Register User
+POST http://localhost:5000/users
+Content-Type: application/json
+
+{
+  "name": "Maulana Nurfaizi",
+  "phone": "081234567890",
+  "email": "maulana@example.com",
+  "gender": "male",
+  "password": "password123",
+  "confirmPassword": "password123"
+}
+
+### Login User
+POST http://localhost:5000/login
+Content-Type: application/json
+
+{
+  "email": "maulana@example.com",
+  "password": "password123"
+}
