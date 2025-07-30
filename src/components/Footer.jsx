@@ -1,92 +1,69 @@
 import React from 'react';
+import '../styles/main.css';
 
-const Footer = () => {
-  const footerSections = [
-    {
-      title: 'Dinas Perikanan',
-      content: <p>Pengelolaan, pembinaan, dan pengembangan sektor perikanan di Kabupaten Contoh.</p>,
-      social: true
-    },
-    {
-      title: 'Tautan Cepat',
-      links: [
-        { text: 'Beranda', url: '#home' },
-        { text: 'Profil', url: '#' },
-        { text: 'Layanan', url: '#' },
-        { text: 'Publikasi', url: '#' },
-        { text: 'Berita', url: '#' },
-        { text: 'Kontak', url: '#contact' }
-      ]
-    },
-    {
-      title: 'Layanan Publik',
-      links: [
-        { text: 'Perizinan Usaha', url: '#' },
-        { text: 'Sertifikasi Produk', url: '#' },
-        { text: 'Pelatihan', url: '#' },
-        { text: 'Pengaduan', url: '#' },
-        { text: 'Data Statistik', url: '#' }
-      ]
-    },
-    {
-      title: 'Kontak',
-      contact: [
-        { icon: 'fas fa-map-marker-alt', text: 'Jl. Perikanan No. 123, Kabupaten Contoh' },
-        { icon: 'fas fa-phone-alt', text: '(021) 12345678' },
-        { icon: 'fas fa-envelope', text: 'perikanan@kabupaten.go.id' }
-      ]
-    }
-  ];
-
+function Footer() {
   return (
     <footer className="footer">
       <div className="footer-container">
         <div className="footer-grid">
-          {footerSections.map((section, index) => (
-            <div className="footer-section" key={index}>
-              <h3>{section.title}</h3>
-              
-              {section.content && section.content}
-              
-              {section.social && (
-                <div className="social-icons">
-                  <a href="#"><i className="fab fa-facebook-f"></i></a>
-                  <a href="#"><i className="fab fa-twitter"></i></a>
-                  <a href="#"><i className="fab fa-instagram"></i></a>
-                  <a href="#"><i className="fab fa-youtube"></i></a>
-                </div>
-              )}
-              
-              {section.links && (
-                <ul>
-                  {section.links.map((link, i) => (
-                    <li key={i}>
-                      <a href={link.url}>{link.text}</a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              
-              {section.contact && (
-                <ul>
-                  {section.contact.map((contact, i) => (
-                    <li className="contact-item" key={i}>
-                      <i className={contact.icon}></i>
-                      <span>{contact.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+          <div className="footer-section">
+            <h3>Tentang Kami</h3>
+            <p>
+              Fishmap AI adalah platform untuk menjelajahi keajaiban laut dengan teknologi AI terkini.
+            </p>
+            <div className="social-icons">
+              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer">
+                <i className="fab fa-facebook-f"></i>
+              </a>
+              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer">
+                <i className="fab fa-twitter"></i>
+              </a>
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer">
+                <i className="fab fa-instagram"></i>
+              </a>
             </div>
-          ))}
+          </div>
+          <div className="footer-section">
+            <h3>Tautan Cepat</h3>
+            <ul>
+              <li><a href="#home">Home</a></li>
+              <li><a href="#katalog">Katalog</a></li>
+              <li><a href="#galeri">Galeri</a></li>
+              <li><a href="#cuaca">Cuaca</a></li>
+              <li><a href="#kontak">Kontak</a></li>
+            </ul>
+          </div>
+          <div className="footer-section">
+            <h3>Layanan Publik</h3>
+            <ul>
+              <li><a href="#">Panduan Memancing</a></li>
+              <li><a href="#">Identifikasi Ikan</a></li>
+              <li><a href="#">Prakiraan Cuaca</a></li>
+              <li><a href="#">Edukasi Ekosistem</a></li>
+            </ul>
+          </div>
+          <div className="footer-section">
+            <h3>Kontak Kami</h3>
+            <div className="contact-item">
+              <i className="fas fa-map-marker-alt"></i>
+              <span>Jl. Lautan No. 123, Jakarta, Indonesia</span>
+            </div>
+            <div className="contact-item">
+              <i className="fas fa-phone"></i>
+              <span>+62 123 456 7890</span>
+            </div>
+            <div className="contact-item">
+              <i className="fas fa-envelope"></i>
+              <span>info@fishmap.ai</span>
+            </div>
+          </div>
         </div>
-        
         <div className="footer-divider">
-          <p>&copy; 2025 Dinas Perikanan Kabupaten Contoh. Seluruh hak cipta dilindungi.</p>
+          <p>&copy; 2025 Fishmap AI. All rights reserved.</p>
         </div>
       </div>
     </footer>
   );
-};
+}
 
 export default Footer;

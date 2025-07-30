@@ -1,132 +1,137 @@
 import React, { useState, useEffect } from 'react';
+import '../styles/main.css';
 
-const Cuaca = () => {
-  const [mapView, setMapView] = useState('radar');
+function Cuaca() {
+  // State untuk jenis peta dan tips cuaca
+  const [mapType, setMapType] = useState('wind');
   const [weatherTips, setWeatherTips] = useState([]);
-  const [mapTips, setMapTips] = useState([]);
-  const [mapTitle, setMapTitle] = useState('Membaca Peta Radar:');
 
+  // Data placeholder untuk kartu cuaca
+  const weatherData = [
+    {
+      id: 1,
+      icon: '☀️',
+      temperature: '28°C',
+      condition: 'Cerah',
+      details: 'Kelembapan: 65% | Angin: 10 km/j',
+    },
+    {
+      id: 2,
+      icon: '🌧️',
+      temperature: '24°C',
+      condition: 'Hujan Ringan',
+      details: 'Kelembapan: 80% | Angin: 15 km/j',
+    },
+    {
+      id: 3,
+      icon: '☁️',
+      temperature: '26°C',
+      condition: 'Berawan',
+      details: 'Kelembapan: 70% | Angin: 12 km/j',
+    },
+  ];
+
+  // Data placeholder untuk tips cuaca
+  const tipsData = [
+    [
+      'Gunakan pelindung matahari saat memancing di cuaca cerah.',
+      'Pastikan peralatan tahan air untuk menghadapi hujan.',
+      'Perhatikan arah angin untuk navigasi kapal.',
+      'Pantau prakiraan cuaca setiap jam.',
+    ],
+    [
+      'Hindari memancing saat badai petir.',
+      'Gunakan jaket pelampung saat ombak besar.',
+      'Cek suhu air sebelum menyelam.',
+      'Simpan peralatan di tempat kering.',
+    ],
+    [
+      'Periksa peralatan sebelum berlayar.',
+      'Gunakan pakaian hangat di cuaca dingin.',
+      'Pantau perubahan cuaca mendadak.',
+      'Selalu bawa alat komunikasi cadangan.',
+    ],
+  ];
+
+  // Fungsi untuk mengubah jenis peta
+  const changeMapView = (type) => {
+    setMapType(type);
+  };
+
+  // Fungsi untuk memperbarui tips cuaca
+  const updateWeatherTips = () => {
+    const randomIndex = Math.floor(Math.random() * tipsData.length);
+    setWeatherTips(tipsData[randomIndex]);
+  };
+
+  // Inisialisasi tips cuaca dan atur pembaruan berkala
   useEffect(() => {
     updateWeatherTips();
+    const interval = setInterval(updateWeatherTips, 10000); // Perbarui setiap 10 detik
+    return () => clearInterval(interval); // Bersihkan interval saat komponen unmount
   }, []);
 
-  const updateWeatherTips = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    
-    if (hour >= 6 && hour < 18) {
-      setWeatherTips([
-        'Waktu terbaik untuk memancing: pagi dan sore hari',
-        'Gunakan tabir surya SPF 50+',
-        'Periksa prakiraan angin sebelum berlayar',
-        'Bawa cukup air minum untuk menghindari dehidrasi'
-      ]);
-    } else {
-      setWeatherTips([
-        'Hindari berlayar jauh di malam hari',
-        'Pastikan lampu navigasi berfungsi',
-        'Waspada terhadap perubahan angin malam',
-        'Beberapa spesies ikan lebih aktif di malam hari'
-      ]);
-    }
+  // URL peta Ventusky berdasarkan jenis peta
+  const mapUrls = {
+    wind: 'https://www.ventusky.com/?p=-6.2;106.8;5&l=wind-10m',
+    temperature: 'https://www.ventusky.com/?p=-6.2;106.8;5&l=temperature-2m',
+    precipitation: 'https://www.ventusky.com/?p=-6.2;106.8;5&l=rain',
   };
-
-  const changeMapView = (viewType) => {
-    setMapView(viewType);
-    
-    switch(viewType) {
-      case 'radar':
-        setMapTitle('Membaca Peta Radar:');
-        setMapTips([
-          { color: '#3b82f6', text: 'Warna Biru: Hujan ringan (0-2 mm/jam)' },
-          { color: '#10b981', text: 'Warna Hijau-Kuning: Hujan sedang (2-10 mm/jam)' },
-          { color: '#ef4444', text: 'Warna Merah: Hujan lebat/badai (>10 mm/jam)' },
-          { color: '#f1f5f9', text: 'Area Putih: Awan tebal tanpa hujan' }
-        ]);
-        break;
-      case 'satellite':
-        setMapTitle('Membaca Peta Satelit:');
-        setMapTips([
-          { color: '#ffffff', text: 'Warna Putih: Awan tebal/tinggi' },
-          { color: '#94a3b8', text: 'Warna Abu-abu: Awan rendah/kabut' },
-          { color: '#000000', text: 'Area Hitam: Langit cerah' },
-          { text: 'Awan bergerak menunjukkan arah angin' }
-        ]);
-        break;
-      // ... tambahkan case lainnya sesuai kebutuhan
-    }
-  };
-
-  const weatherData = [
-    { icon: '☀️', day: 'Hari Ini', temp: '28°C', condition: 'Cerah', details: ['Kelembapan: 75%', 'Angin: 10 km/jam'] },
-    { icon: '⛅', day: 'Besok', temp: '26°C', condition: 'Berawan', details: ['Kelembapan: 80%', 'Angin: 15 km/jam'] },
-    { icon: '🌧️', day: 'Lusa', temp: '24°C', condition: 'Hujan Ringan', details: ['Kelembapan: 85%', 'Angin: 20 km/jam'] }
-  ];
 
   return (
     <section className="section" id="cuaca">
-      <h2 className="section-title">Cuaca & Kondisi Laut</h2>
-      
+      <h2 className="section-title">Informasi Cuaca</h2>
+      <p className="section-subtitle">
+        Pantau kondisi cuaca terkini untuk perjalanan laut yang aman dan nyaman.
+      </p>
       <div className="weather-container">
-        {weatherData.map((weather, index) => (
-          <div className="weather-card" key={index}>
+        {weatherData.map((weather) => (
+          <div key={weather.id} className="weather-card">
             <div className="weather-icon">{weather.icon}</div>
-            <h3>{weather.day}</h3>
-            <div className="weather-temp">{weather.temp}</div>
+            <div className="weather-temp">{weather.temperature}</div>
             <div className="weather-condition">{weather.condition}</div>
-            <div className="weather-details">
-              {weather.details.map((detail, i) => <div key={i}>{detail}</div>)}
-            </div>
+            <div className="weather-details">{weather.details}</div>
           </div>
         ))}
       </div>
-      
+      <div className="map-controls">
+        <button
+          className={`map-control-btn ${mapType === 'wind' ? 'active' : ''}`}
+          onClick={() => changeMapView('wind')}
+        >
+          Angin
+        </button>
+        <button
+          className={`map-control-btn ${mapType === 'temperature' ? 'active' : ''}`}
+          onClick={() => changeMapView('temperature')}
+        >
+          Suhu
+        </button>
+        <button
+          className={`map-control-btn ${mapType === 'precipitation' ? 'active' : ''}`}
+          onClick={() => changeMapView('precipitation')}
+        >
+          Curah Hujan
+        </button>
+      </div>
+      <div className="map-container">
+        <div className="map-label">Peta Cuaca: {mapType.charAt(0).toUpperCase() + mapType.slice(1)}</div>
+        <iframe
+          src={mapUrls[mapType]}
+          className="satellite-map"
+          title="Peta Cuaca Ventusky"
+        ></iframe>
+      </div>
       <div className="weather-tips">
-        <h3>Tips Aktivitas Laut:</h3>
-        <ul id="weather-tips-list">
+        <h3>Tips Cuaca untuk Pelaut</h3>
+        <ul>
           {weatherTips.map((tip, index) => (
             <li key={index}>{tip}</li>
           ))}
         </ul>
       </div>
-      
-      <h3 style={{ marginBottom: '1rem', color: '#f1f5f9' }}>Peta Satelit Cuaca</h3>
-      
-      <div className="map-controls">
-        {['radar', 'satellite', 'lightning', 'wind', 'waves'].map((view) => (
-          <button
-            key={view}
-            className={`map-control-btn ${mapView === view ? 'active' : ''}`}
-            onClick={() => changeMapView(view)}
-          >
-            {view.charAt(0).toUpperCase() + view.slice(1)}
-          </button>
-        ))}
-      </div>
-      
-      <div className="map-container">
-        <div className="map-label">Lokasi: Perairan Bali (Lat: -8.253, Long: 114.385)</div>
-        <iframe 
-          src={`https://www.ventusky.com/?p=-8.253;114.385;11&l=${mapView}`}
-          className="satellite-map"
-          allowFullScreen
-          title="Ventusky Weather Map"
-        ></iframe>
-      </div>
-      
-      <div className="weather-tips">
-        <h3 id="map-reading-title">{mapTitle}</h3>
-        <ul id="map-reading-list">
-          {mapTips.map((tip, index) => (
-            <li key={index}>
-              {tip.color && <strong style={{ color: tip.color }}>{tip.text.split(':')[0]}:</strong>}
-              {tip.color ? tip.text.split(':').slice(1).join(':') : tip.text}
-            </li>
-          ))}
-        </ul>
-      </div>
     </section>
   );
-};
+}
 
 export default Cuaca;
