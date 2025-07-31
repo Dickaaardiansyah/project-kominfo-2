@@ -6,6 +6,7 @@ import ScanUpload from '../components/ScanUpload';
 import Contact from '../components/Kontak';
 import Footer from '../components/Footer';
 import '../styles/main.css';
+import '../styles/scan.css';
 
 function Scan() {
   return (
