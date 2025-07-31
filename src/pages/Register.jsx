@@ -1,6 +1,6 @@
 // src/pages/Register.jsx
 import React from 'react';
-import Register from '../components/register/register';
+import Register from '../components/Auth/register/register';
 import '../styles/main.css';
 
 function RegisterPage() {
