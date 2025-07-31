@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { NavLink } from 'react-router-dom';
 import '../styles/main.css';
 
 function Katalog() {
@@ -100,7 +101,9 @@ function Katalog() {
         ))}
       </div>
       <div className="load-more">
-        <button className="load-more-btn">Muat Lebih Banyak</button>
+        <NavLink to="/toko" className="load-more-btn">
+          Muat Lebih Banyak
+        </NavLink>
       </div>
     </section>
   );
