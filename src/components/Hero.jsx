@@ -1,8 +1,11 @@
+// D:\Projek Kominfo\project-kominfo-2\src\components\Hero.jsx
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import '../styles/main.css';
 
 function Hero() {
+  const navigate = useNavigate();
+
   return (
     <section className="hero" id="home">
       <div className="hero-content">
@@ -10,9 +13,12 @@ function Hero() {
         <p>
           Temukan dunia bawah laut dengan teknologi AI terkini. Identifikasi ikan, pelajari ekosistem laut, dan nikmati pengalaman interaktif yang mendidik dan menyenangkan.
         </p>
-        <NavLink to="#katalog" className="cta-button">
+        <button 
+          onClick={() => navigate('/scan')} 
+          className="cta-button"
+        >
           Scan disini
-        </NavLink>
+        </button>
       </div>
       <div className="hero-image">
         <div className="fish-visual">
