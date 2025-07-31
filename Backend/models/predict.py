@@ -9,7 +9,7 @@ from tensorflow import keras
 from PIL import Image
 
 # Load model
-model_path = os.path.join(os.path.dirname(__file__), 'mymodel.keras')
+model_path = os.path.join(os.path.dirname(__file__), 'best_model.keras')
 model = keras.models.load_model(model_path)
 
 # Load class names
