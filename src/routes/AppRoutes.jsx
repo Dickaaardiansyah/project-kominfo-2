@@ -1,11 +1,12 @@
 // D:\Projek Kominfo\project-kominfo-2\src\routes\AppRoutes.jsx
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Home from '../pages/Home';
-import Register from '../pages/Register';
-import Toko from '../pages/Toko';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Home from "../pages/Home";
 
-import Scan from '../pages/Scan';
+import Toko from "../pages/Toko";
 
+import Register from "../pages/Register";
+
+import Scan from "../pages/Scan";
 
 export function AppRoutes() {
   return (
@@ -13,8 +14,9 @@ export function AppRoutes() {
       <Routes>
         <Route path="/" element={<Home />} />
 
-        <Route path="/register" element={<Register />} />
+        <Route path="/toko" element={<Toko />} />
 
+        <Route path="/register" element={<Register />} />
 
         <Route path="/toko" element={<Toko />} />
 
