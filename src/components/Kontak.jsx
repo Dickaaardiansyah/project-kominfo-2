@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
-import '../styles/main.css';
+import React, { useState } from "react";
+import "../styles/main.css";
 
 function Kontak() {
   // State untuk input formulir dan pesan konfirmasi
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: '',
+    name: "",
+    email: "",
+    subject: "",
+    message: "",
   });
-  const [submitMessage, setSubmitMessage] = useState('');
+  const [submitMessage, setSubmitMessage] = useState("");
 
   // Handler untuk perubahan input
   const handleInputChange = (e) => {
@@ -20,9 +20,9 @@ function Kontak() {
   // Handler untuk submit formulir
   const handleSubmit = () => {
     // Simulasi pengiriman formulir (ganti dengan logika API jika diperlukan)
-    setSubmitMessage('Terima kasih! Pesan Anda telah dikirim.');
-    setFormData({ name: '', email: '', subject: '', message: '' });
-    setTimeout(() => setSubmitMessage(''), 3000); // Hapus pesan setelah 3 detik
+    setSubmitMessage("Terima kasih! Pesan Anda telah dikirim.");
+    setFormData({ name: "", email: "", subject: "", message: "" });
+    setTimeout(() => setSubmitMessage(""), 3000); // Hapus pesan setelah 3 detik
   };
 
   return (
@@ -31,8 +31,8 @@ function Kontak() {
         <h2 className="contact-title">Hubungi Kami</h2>
         <div className="contact-divider"></div>
         <p className="contact-subtitle">
-          Kami siap membantu Anda dengan pertanyaan atau informasi yang dibutuhkan.
-          Kirim pesan atau kunjungi kami!
+          Kami siap membantu Anda dengan pertanyaan atau informasi yang
+          dibutuhkan. Kirim pesan atau kunjungi kami!
         </p>
         <div className="contact-grid">
           <div className="contact-form-container">
@@ -85,7 +85,9 @@ function Kontak() {
                 </div>
                 <button onClick={handleSubmit}>Kirim Pesan</button>
               </div>
-              {submitMessage && <p className="submit-message">{submitMessage}</p>}
+              {submitMessage && (
+                <p className="submit-message">{submitMessage}</p>
+              )}
             </div>
           </div>
           <div className="contact-info-container">
@@ -122,13 +124,25 @@ function Kontak() {
               <div className="social-links">
                 <h4>Ikuti Kami</h4>
                 <div className="social-icons">
-                  <a href="https://facebook.com" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href="https://facebook.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <i className="fab fa-facebook-f"></i>
                   </a>
-                  <a href="https://twitter.com" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href="https://twitter.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <i className="fab fa-twitter"></i>
                   </a>
-                  <a href="https://instagram.com" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href="https://instagram.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <i className="fab fa-instagram"></i>
                   </a>
                 </div>
@@ -136,7 +150,7 @@ function Kontak() {
             </div>
             <div className="office-map">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.309070227528!2d106.81914931533402!3d-6.223987995493509!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f3e8c5c3b4f1%3A0x4b5b1a6a7b8e7c1!2sJakarta%2C%20Indonesia!5e0!3m2!1sen!2sid!4v1634567890123!5m2!1sen!2sid"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3948.7931749926124!2d114.35397517505679!3d-8.223543091809065!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2dd15ab572a9dd93%3A0x9852707256a22fd3!2sDinas%20Komunikasi%2C%20Informatika%20dan%20Persandian%20Kabupaten%20Banyuwangi!5e0!3m2!1sid!2sid!4v1753845253606!5m2!1sid!2sid"
                 title="Peta Kantor Fishmap AI"
                 allowFullScreen
               ></iframe>
