@@ -1,6 +1,6 @@
 // src/pages/Register.jsx
 import React, { useState } from 'react';
-import '../../styles/register.css'; // Buat file ini nanti
+import '../../../styles/register.css';
 
 function Register() {
   const [form, setForm] = useState({

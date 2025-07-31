@@ -5,7 +5,7 @@ import Home from "../pages/Home";
 import Toko from "../pages/Toko";
 
 import Register from "../pages/Register";
-
+import Login from "../pages/Login";
 import Scan from "../pages/Scan";
 
 export function AppRoutes() {
@@ -17,6 +17,7 @@ export function AppRoutes() {
         <Route path="/toko" element={<Toko />} />
 
         <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
 
         <Route path="/toko" element={<Toko />} />
 
