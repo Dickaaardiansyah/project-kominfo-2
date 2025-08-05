@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import '../styles/main.css';
+import '../../styles/main.css';
 
 function Cuaca() {
   const [mapType, setMapType] = useState('wind');

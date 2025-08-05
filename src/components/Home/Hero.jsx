@@ -1,7 +1,7 @@
 // D:\Projek Kominfo\project-kominfo-2\src\components\Hero.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import '../styles/main.css';
+import '../../styles/main.css';
 
 function Hero() {
   const navigate = useNavigate();
