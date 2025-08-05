@@ -9,6 +9,7 @@ function ScanUpload() {
   const [isCamera, setIsCamera] = useState(false);
   const [stream, setStream] = useState(null);
   const [error, setError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false); // State untuk loading save
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -180,83 +181,175 @@ function ScanUpload() {
     }
   };
 
-  // Save to database
+  // Save to database - UPDATED FUNCTION
   const saveToDatabase = async () => {
-    try {
-      const dataToSave = {
-        image: selectedImage,
-        fishData: analysisResult,
-        timestamp: new Date().toISOString(),
-        saved_to_catalog: false
-      };
+    if (!analysisResult || !selectedImage) {
+      alert('Tidak ada data untuk disimpan');
+      return;
+    }
 
-      // Ganti dengan endpoint API Anda untuk menyimpan data
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      // Prepare data untuk dikirim ke backend
+      const formData = new FormData();
+      
+      // Tambahkan file gambar asli
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+      
+      // Tambahkan data hasil analisis
+      formData.append('fish_name', analysisResult.name || analysisResult.predicted_class);
+      formData.append('predicted_class', analysisResult.predicted_class);
+      formData.append('confidence', parseFloat(analysisResult.confidence.replace('%', ''))); // Remove % and convert to number
+      formData.append('habitat', analysisResult.habitat);
+      formData.append('konsumsi', analysisResult.konsumsi);
+      formData.append('top_predictions', JSON.stringify(analysisResult.top_predictions));
+      formData.append('timestamp', new Date().toISOString());
+      formData.append('saved_to_catalog', 'false');
+
+      // Kirim ke backend
       const response = await fetch(`${API_BASE_URL}/api/save-scan`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(dataToSave)
+        mode: 'cors',
+        body: formData // Gunakan FormData untuk mengirim file dan data
       });
 
-      if (response.ok) {
-        alert('Data berhasil disimpan!');
-      } else {
-        throw new Error('Gagal menyimpan data');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
+
+      const result = await response.json();
+      console.log('Save response:', result);
+
+      if (result.status === 'success' || result.success) {
+        alert('Data berhasil disimpan ke database!');
+        
+        // Optional: Reset form setelah berhasil simpan
+        // resetScan();
+      } else {
+        throw new Error(result.message || 'Gagal menyimpan data');
+      }
+
     } catch (error) {
       console.error('Error saving to database:', error);
+      
+      // Handle different types of errors
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        setError('Gagal terhubung ke server. Pastikan server API berjalan di localhost:5000');
+      } else {
+        setError('Gagal menyimpan data: ' + error.message);
+      }
+      
       // Fallback ke localStorage jika API gagal
-      const existingData = JSON.parse(localStorage.getItem('fishScans') || '[]');
-      existingData.push({
-        id: Date.now(),
-        image: selectedImage,
-        fishData: analysisResult,
-        timestamp: new Date().toISOString(),
-        saved_to_catalog: false
-      });
-      localStorage.setItem('fishScans', JSON.stringify(existingData));
-      alert('Data disimpan secara lokal!');
+      try {
+        const existingData = JSON.parse(localStorage.getItem('fishScans') || '[]');
+        const newData = {
+          id: Date.now(),
+          image: selectedImage,
+          fishData: analysisResult,
+          timestamp: new Date().toISOString(),
+          saved_to_catalog: false
+        };
+        existingData.push(newData);
+        localStorage.setItem('fishScans', JSON.stringify(existingData));
+        alert('Server tidak tersedia. Data disimpan secara lokal!');
+      } catch (localError) {
+        console.error('Error saving to localStorage:', localError);
+        alert('Gagal menyimpan data baik ke server maupun lokal');
+      }
+
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // Save to catalog
+  // Save to catalog - UPDATED FUNCTION
   const saveToCatalog = async () => {
-    try {
-      const dataToSave = {
-        image: selectedImage,
-        fishData: analysisResult,
-        timestamp: new Date().toISOString(),
-        saved_to_catalog: true
-      };
+    if (!analysisResult || !selectedImage) {
+      alert('Tidak ada data untuk disimpan');
+      return;
+    }
 
-      // Ganti dengan endpoint API Anda untuk katalog
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      // Prepare data untuk dikirim ke backend
+      const formData = new FormData();
+      
+      // Tambahkan file gambar asli
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+      
+      // Tambahkan data hasil analisis
+      formData.append('fish_name', analysisResult.name || analysisResult.predicted_class);
+      formData.append('predicted_class', analysisResult.predicted_class);
+      formData.append('confidence', parseFloat(analysisResult.confidence.replace('%', ''))); // Remove % and convert to number
+      formData.append('habitat', analysisResult.habitat);
+      formData.append('konsumsi', analysisResult.konsumsi);
+      formData.append('top_predictions', JSON.stringify(analysisResult.top_predictions));
+      formData.append('timestamp', new Date().toISOString());
+      formData.append('saved_to_catalog', 'true');
+
+      // Kirim ke backend
       const response = await fetch(`${API_BASE_URL}/api/save-to-catalog`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(dataToSave)
+        mode: 'cors',
+        body: formData // Gunakan FormData untuk mengirim file dan data
       });
 
-      if (response.ok) {
-        alert('Data berhasil ditambahkan ke katalog!');
-      } else {
-        throw new Error('Gagal menambahkan ke katalog');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
+
+      const result = await response.json();
+      console.log('Catalog save response:', result);
+
+      if (result.status === 'success' || result.success) {
+        alert('Data berhasil ditambahkan ke katalog!');
+        
+        // Optional: Reset form setelah berhasil simpan
+        // resetScan();
+      } else {
+        throw new Error(result.message || 'Gagal menambahkan ke katalog');
+      }
+
     } catch (error) {
       console.error('Error saving to catalog:', error);
+      
+      // Handle different types of errors
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        setError('Gagal terhubung ke server. Pastikan server API berjalan di localhost:5000');
+      } else {
+        setError('Gagal menambahkan ke katalog: ' + error.message);
+      }
+      
       // Fallback ke localStorage jika API gagal
-      const existingCatalog = JSON.parse(localStorage.getItem('fishCatalog') || '[]');
-      existingCatalog.push({
-        id: Date.now(),
-        image: selectedImage,
-        fishData: analysisResult,
-        timestamp: new Date().toISOString(),
-        saved_to_catalog: true
-      });
-      localStorage.setItem('fishCatalog', JSON.stringify(existingCatalog));
-      alert('Data ditambahkan ke katalog lokal!');
+      try {
+        const existingCatalog = JSON.parse(localStorage.getItem('fishCatalog') || '[]');
+        const newData = {
+          id: Date.now(),
+          image: selectedImage,
+          fishData: analysisResult,
+          timestamp: new Date().toISOString(),
+          saved_to_catalog: true
+        };
+        existingCatalog.push(newData);
+        localStorage.setItem('fishCatalog', JSON.stringify(existingCatalog));
+        alert('Server tidak tersedia. Data ditambahkan ke katalog lokal!');
+      } catch (localError) {
+        console.error('Error saving to localStorage:', localError);
+        alert('Gagal menyimpan data baik ke server maupun lokal');
+      }
+
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -267,6 +360,7 @@ function ScanUpload() {
     setAnalysisResult(null);
     setIsAnalyzing(false);
     setError(null);
+    setIsSaving(false);
     stopCamera();
   };
 
@@ -357,6 +451,19 @@ function ScanUpload() {
             </div>
           )}
 
+          {/* Loading indicator untuk save */}
+          {isSaving && (
+            <div className="analyzing-modal">
+              <div className="analyzing-content">
+                <div className="analyzing-spinner"></div>
+                <p>Menyimpan data...</p>
+                <p style={{ fontSize: '14px', color: '#666' }}>
+                  Mengirim ke database...
+                </p>
+              </div>
+            </div>
+          )}
+
           {analysisResult && !isAnalyzing && (
             <div className="analysis-result">
               <div className="result-card">
@@ -395,11 +502,21 @@ function ScanUpload() {
               </div>
               
               <div className="action-buttons">
-                <button onClick={saveToDatabase} className="save-button">
-                  <i className="fas fa-save"></i> Simpan
+                <button 
+                  onClick={saveToDatabase} 
+                  className="save-button"
+                  disabled={isSaving}
+                >
+                  <i className="fas fa-save"></i> 
+                  {isSaving ? 'Menyimpan...' : 'Simpan'}
                 </button>
-                <button onClick={saveToCatalog} className="catalog-button">
-                  <i className="fas fa-plus"></i> Tambah ke Katalog +
+                <button 
+                  onClick={saveToCatalog} 
+                  className="catalog-button"
+                  disabled={isSaving}
+                >
+                  <i className="fas fa-plus"></i> 
+                  {isSaving ? 'Menyimpan...' : 'Tambah ke Katalog +'}
                 </button>
               </div>
             </div>
