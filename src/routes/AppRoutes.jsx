@@ -6,6 +6,8 @@ import Register from "../pages/Register";
 import Login from "../pages/Login";
 import Scan from "../pages/Scan";
 import Profile from "../pages/Profile";
+import History from "../pages/History";
+import Marketplace from "../pages/Marketplace";
 import AddKatalogPage from "../pages/AddKatalogPage"; // ⬅️ Import halaman AddKatalog
 
 export function AppRoutes() {
@@ -23,6 +25,8 @@ export function AppRoutes() {
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/profil" element={<Profile />} />
+        <Route path="/history" element={<History/>} />
+        <Route path="/marketplace" element={<Marketplace/>} />
         <Route path="/katalog/tambah" element={<AddKatalogPage />} /> {/* ⬅️ Dipindah ke luar Layout */}
         
         {/* Optional: 404 page */}
