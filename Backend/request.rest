@@ -4,8 +4,8 @@ Content-Type: application/json
 
 {
   "name": "Maulana Nurfaizi",
-  "phone": "081234567890",
-  "email": "maulana@example.com",
+  "phone": "0812345678900",
+  "email": "maulanas@example.com",
   "gender": "male",
   "password": "password123",
   "confirmPassword": "password123"

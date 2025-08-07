@@ -2,6 +2,7 @@ import Users from '../models/userModel.js';
 import bcrypt from 'bcrypt';
 import { Op } from 'sequelize';
 import jwt from 'jsonwebtoken';
+import { generateOTP, sendOTPEmail, sendWelcomeEmail } from '../services/emailService.js';
 
 
 export const getUsers = async (req, res) => {
@@ -83,21 +84,47 @@ export const Register = async (req, res) => {
         const salt = await bcrypt.genSalt();
         const hashPassword = await bcrypt.hash(password, salt);
 
-        // Simpan ke database
+        // Generate OTP
+        const otpCode = generateOTP();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 menit dari sekarang
+
+        console.log('Generated OTP for', email, ':', otpCode); // Debug log
+
+        // Simpan ke database (belum verified)
         const newUser = await Users.create({
             name,
             phone,
             email,
             gender,
             password: hashPassword,
+            otp_code: otpCode,
+            otp_expires: otpExpires,
+            is_verified: false // Belum verified
         });
 
-        // Buang password dari response
-        const { password: _, ...userWithoutPassword } = newUser.toJSON();
+        // Kirim OTP email
+        try {
+            await sendOTPEmail(email, name, otpCode);
+            console.log('OTP email sent successfully to:', email);
+        } catch (emailError) {
+            console.error('Failed to send OTP email:', emailError);
+            
+            // Jika email gagal, hapus user yang baru dibuat
+            await Users.destroy({ where: { id: newUser.id } });
+            
+            return res.status(500).json({
+                msg: "Gagal mengirim email verifikasi. Silakan coba lagi.",
+                debug: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+            });
+        }
+
+        // Buang password dan OTP dari response
+        const { password: _, otp_code: __, ...userWithoutSensitiveData } = newUser.toJSON();
 
         res.status(201).json({
-            msg: "Registrasi berhasil",
-            data: userWithoutPassword
+            msg: "Registrasi berhasil. Silakan cek email untuk kode verifikasi.",
+            user: userWithoutSensitiveData,
+            nextStep: "verify_otp"
         });
 
     } catch (error) {
@@ -119,30 +146,179 @@ export const Register = async (req, res) => {
     }
 };
 
-// Helper function untuk calculate calories
-// function calculateCalories({ height, currentWeight, age, gender, activityLevel, weeklyTarget }) {
-//     const weight = parseFloat(currentWeight);
-//     const heightCm = parseFloat(height);
-//     const ageNum = parseInt(age);
-//     const activity = parseFloat(activityLevel);
-//     const target = parseFloat(weeklyTarget);
+export const verifyOTP = async (req, res) => {
+    const { email, otp_code } = req.body;
 
-//     // Mifflin-St Jeor Equation
-//     let bmr;
-//     if (gender === 'male') {
-//         bmr = (10 * weight) + (6.25 * heightCm) - (5 * ageNum) + 5;
-//     } else {
-//         bmr = (10 * weight) + (6.25 * heightCm) - (5 * ageNum) - 161;
-//     }
+    // Validasi input
+    if (!email || !otp_code) {
+        return res.status(400).json({
+            msg: "Email dan kode OTP harus diisi"
+        });
+    }
 
-//     const tdee = bmr * activity;
-//     const weeklyDeficit = target * 7700;
-//     const dailyDeficit = weeklyDeficit / 7;
-//     const targetCalories = tdee - dailyDeficit;
-//     const minCalories = gender === 'male' ? 1500 : 1200;
+    try {
+        // Cari user berdasarkan email
+        const user = await Users.findOne({
+            where: { email: email }
+        });
 
-//     return Math.max(Math.round(targetCalories), minCalories);
-// }
+        if (!user) {
+            return res.status(404).json({
+                msg: "User tidak ditemukan"
+            });
+        }
+
+        // Cek apakah sudah verified
+        if (user.is_verified) {
+            return res.status(400).json({
+                msg: "Email sudah terverifikasi. Silakan login."
+            });
+        }
+
+        // Cek OTP
+        if (user.otp_code !== otp_code) {
+            return res.status(400).json({
+                msg: "Kode OTP tidak valid"
+            });
+        }
+
+        // Cek expiry
+        if (new Date() > user.otp_expires) {
+            return res.status(400).json({
+                msg: "Kode OTP sudah expired. Silakan minta kode baru."
+            });
+        }
+
+        // Update user menjadi verified
+        await Users.update(
+            {
+                is_verified: true,
+                email_verified_at: new Date(),
+                otp_code: null, // Clear OTP
+                otp_expires: null // Clear expiry
+            },
+            { where: { id: user.id } }
+        );
+
+        // Kirim welcome email
+        try {
+            await sendWelcomeEmail(email, user.name);
+            console.log('Welcome email sent to:', email);
+        } catch (emailError) {
+            console.error('Failed to send welcome email:', emailError);
+            // Tidak perlu gagal, karena verifikasi sudah berhasil
+        }
+
+        // Generate tokens untuk auto-login
+        const accessToken = jwt.sign(
+            { userId: user.id, name: user.name, email: user.email },
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        const refreshToken = jwt.sign(
+            { userId: user.id, name: user.name, email: user.email },
+            process.env.REFRESH_TOKEN_SECRET,
+            { expiresIn: '1d' }
+        );
+
+        // Simpan refresh token
+        await Users.update(
+            { refresh_token: refreshToken },
+            { where: { id: user.id } }
+        );
+
+        // Set refresh token ke cookie
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict',
+            maxAge: 24 * 60 * 60 * 1000 // 1 hari
+        });
+
+        res.status(200).json({
+            msg: "Email berhasil diverifikasi! Selamat datang di Fishmap AI",
+            accessToken,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                is_verified: true
+            },
+            autoLogin: true
+        });
+
+    } catch (error) {
+        console.error('OTP verification error:', error);
+        res.status(500).json({
+            msg: "Terjadi kesalahan server"
+        });
+    }
+};
+
+// ⭐ NEW: Resend OTP
+export const resendOTP = async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({
+            msg: "Email harus diisi"
+        });
+    }
+
+    try {
+        // Cari user
+        const user = await Users.findOne({
+            where: { email: email }
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                msg: "Email tidak ditemukan"
+            });
+        }
+
+        if (user.is_verified) {
+            return res.status(400).json({
+                msg: "Email sudah terverifikasi"
+            });
+        }
+
+        // Generate OTP baru
+        const otpCode = generateOTP();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 menit
+
+        // Update OTP di database
+        await Users.update(
+            {
+                otp_code: otpCode,
+                otp_expires: otpExpires
+            },
+            { where: { id: user.id } }
+        );
+
+        // Kirim OTP email
+        try {
+            await sendOTPEmail(email, user.name, otpCode);
+            console.log('OTP resent successfully to:', email);
+        } catch (emailError) {
+            console.error('Failed to resend OTP email:', emailError);
+            return res.status(500).json({
+                msg: "Gagal mengirim ulang email verifikasi"
+            });
+        }
+
+        res.status(200).json({
+            msg: "Kode verifikasi berhasil dikirim ulang. Silakan cek email Anda."
+        });
+
+    } catch (error) {
+        console.error('Resend OTP error:', error);
+        res.status(500).json({
+            msg: "Terjadi kesalahan server"
+        });
+    }
+};
 
 export const Login = async (req, res) => {
     const { email, password } = req.body;

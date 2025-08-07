@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { promisify } from 'util';
-import FishPredictions from '../models/FishPredictionModel.js'; // Import model Sequelize
+import FishPredictions from '../models/fishPredictionModel.js'; // Import model Sequelize
 import Users from '../models/userModel.js'; // Import Users model
 import jwt from 'jsonwebtoken';
 import { Op } from 'sequelize'; // Import Sequelize operators
