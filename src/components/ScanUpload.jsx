@@ -1,5 +1,5 @@
-// D:\Projek Kominfo\project-kominfo-2\src\components\ScanUpload.jsx
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 function ScanUpload() {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -12,6 +12,7 @@ function ScanUpload() {
   const [isSaving, setIsSaving] = useState(false); // State untuk loading save
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const navigate = useNavigate(); // Hook untuk navigasi
 
   // API Base URL
   const API_BASE_URL = 'http://localhost:5000';
@@ -181,7 +182,7 @@ function ScanUpload() {
     }
   };
 
-  // Save to database - UPDATED FUNCTION
+  // Save to database - UNCHANGED
   const saveToDatabase = async () => {
     if (!analysisResult || !selectedImage) {
       alert('Tidak ada data untuk disimpan');
@@ -267,90 +268,40 @@ function ScanUpload() {
     }
   };
 
-  // Save to catalog - UPDATED FUNCTION
-  const saveToCatalog = async () => {
+  // UPDATED: Navigate to AddKatalog page with data
+  const goToAddKatalog = () => {
     if (!analysisResult || !selectedImage) {
-      alert('Tidak ada data untuk disimpan');
+      alert('Tidak ada data hasil analisis');
       return;
     }
 
-    setIsSaving(true);
-    setError(null);
-
-    try {
-      // Prepare data untuk dikirim ke backend
-      const formData = new FormData();
+    // Siapkan data untuk dibawa ke halaman AddKatalog
+    const catalogData = {
+      // Data AI hasil analisis
+      predictedFishName: analysisResult.name || analysisResult.predicted_class,
+      aiAccuracy: parseFloat(analysisResult.confidence.replace('%', '')) / 100, // Convert ke decimal
+      fishImage: selectedImage,
       
-      // Tambahkan file gambar asli
-      if (imageFile) {
-        formData.append('image', imageFile);
-      }
+      // Data form (pre-fill dari hasil AI)
+      namaIkan: analysisResult.name || analysisResult.predicted_class,
+      kategori: analysisResult.konsumsi === 'Dapat dikonsumsi' ? 'Ikan Konsumsi' : 'Ikan Hias',
+      habitat: analysisResult.habitat,
       
-      // Tambahkan data hasil analisis
-      formData.append('fish_name', analysisResult.name || analysisResult.predicted_class);
-      formData.append('predicted_class', analysisResult.predicted_class);
-      formData.append('confidence', parseFloat(analysisResult.confidence.replace('%', ''))); // Remove % and convert to number
-      formData.append('habitat', analysisResult.habitat);
-      formData.append('konsumsi', analysisResult.konsumsi);
-      formData.append('top_predictions', JSON.stringify(analysisResult.top_predictions));
-      formData.append('timestamp', new Date().toISOString());
-      formData.append('saved_to_catalog', 'true');
-
-      // Kirim ke backend
-      const response = await fetch(`${API_BASE_URL}/api/save-to-catalog`, {
-        method: 'POST',
-        mode: 'cors',
-        body: formData // Gunakan FormData untuk mengirim file dan data
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log('Catalog save response:', result);
-
-      if (result.status === 'success' || result.success) {
-        alert('Data berhasil ditambahkan ke katalog!');
-        
-        // Optional: Reset form setelah berhasil simpan
-        // resetScan();
-      } else {
-        throw new Error(result.message || 'Gagal menambahkan ke katalog');
-      }
-
-    } catch (error) {
-      console.error('Error saving to catalog:', error);
+      // Data tambahan
+      tingkatKeamanan: 0.98,
+      amanDikonsumsi: analysisResult.konsumsi === 'Dapat dikonsumsi',
+      jauhDariPabrik: true,
       
-      // Handle different types of errors
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        setError('Gagal terhubung ke server. Pastikan server API berjalan di localhost:5000');
-      } else {
-        setError('Gagal menambahkan ke katalog: ' + error.message);
-      }
-      
-      // Fallback ke localStorage jika API gagal
-      try {
-        const existingCatalog = JSON.parse(localStorage.getItem('fishCatalog') || '[]');
-        const newData = {
-          id: Date.now(),
-          image: selectedImage,
-          fishData: analysisResult,
-          timestamp: new Date().toISOString(),
-          saved_to_catalog: true
-        };
-        existingCatalog.push(newData);
-        localStorage.setItem('fishCatalog', JSON.stringify(existingCatalog));
-        alert('Server tidak tersedia. Data ditambahkan ke katalog lokal!');
-      } catch (localError) {
-        console.error('Error saving to localStorage:', localError);
-        alert('Gagal menyimpan data baik ke server maupun lokal');
-      }
+      // Metadata
+      scanTimestamp: new Date().toISOString(),
+      originalImageFile: imageFile // Untuk upload nanti jika diperlukan
+    };
 
-    } finally {
-      setIsSaving(false);
-    }
+    // Simpan data ke localStorage untuk diambil di halaman AddKatalog
+    localStorage.setItem('pendingCatalogData', JSON.stringify(catalogData));
+    
+    // Navigasi ke halaman AddKatalog
+    navigate('/katalog/tambah');
   };
 
   // Reset scan
@@ -511,12 +462,12 @@ function ScanUpload() {
                   {isSaving ? 'Menyimpan...' : 'Simpan'}
                 </button>
                 <button 
-                  onClick={saveToCatalog} 
+                  onClick={goToAddKatalog} 
                   className="catalog-button"
                   disabled={isSaving}
                 >
                   <i className="fas fa-plus"></i> 
-                  {isSaving ? 'Menyimpan...' : 'Tambah ke Katalog +'}
+                  Tambah ke Katalog +
                 </button>
               </div>
             </div>

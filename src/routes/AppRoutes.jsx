@@ -5,7 +5,8 @@ import Toko from "../pages/Toko";
 import Register from "../pages/Register";
 import Login from "../pages/Login";
 import Scan from "../pages/Scan";
-import Profile from "../pages/Profile"; // ⬅️ Tambahkan ini
+import Profile from "../pages/Profile";
+import AddKatalogPage from "../pages/AddKatalogPage"; // ⬅️ Import halaman AddKatalog
 
 export function AppRoutes() {
   return (
@@ -18,10 +19,12 @@ export function AppRoutes() {
           <Route path="/scan" element={<Scan />} />
         </Route>
 
-        {/* Halaman login dan register tidak pakai layout */}
+        {/* Halaman tanpa layout (termasuk AddKatalog) */}
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/profil" element={<Profile />} /> {/* ⬅️ Tambahkan ini */}
+        <Route path="/profil" element={<Profile />} />
+        <Route path="/katalog/tambah" element={<AddKatalogPage />} /> {/* ⬅️ Dipindah ke luar Layout */}
+        
         {/* Optional: 404 page */}
         <Route path="*" element={<h1>404 - Halaman Tidak Ditemukan</h1>} />
       </Routes>

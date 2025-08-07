@@ -4,7 +4,7 @@ import db from './config/Database.js';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 // import Users from './models/userModel.js';
-import FishPredictions from './models/fishPredictionModel.js';
+// import FishPredictions from './models/fishPredictionModel.js';
 // import Katalog from './models/KatalogModel.js';
 import router from './routes/index.js';
 
@@ -19,7 +19,7 @@ try {
     await db.authenticate();
     console.log('Database connected...');
     // await Users.sync();
-    await FishPredictions.sync();
+    // await FishPredictions.sync();
     // await Katalog.sync();
 } catch (error) {
     console.error('Database connection failed:', error);
