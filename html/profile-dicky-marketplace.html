@@ -263,6 +263,32 @@
             color: #ccc;
         }
 
+        /* Add Product Button */
+        .add-product-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .add-product-btn:hover {
+            transform: scale(1.1);
+            background-color: #3e8e41;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
@@ -310,6 +336,14 @@
 
             .products-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .add-product-btn {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
             }
         }
     </style>
@@ -360,31 +394,52 @@
         <!-- Stats Section -->
         <div class="stats-section">
             <div class="stat-card">
-                <div class="stat-number">1,234</div>
-                <div class="stat-label">Total Produk</div>
+                <div class="stat-number">234</div>
+                <div class="stat-label">Total Products</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">567</div>
-                <div class="stat-label">Terjual Bulan Ini</div>
+                <div class="stat-number">67</div>
+                <div class="stat-label">Categories</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">89</div>
-                <div class="stat-label">Penjual Aktif</div>
+                <div class="stat-number">1.2k</div>
+                <div class="stat-label">Active Users</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number">4.8</div>
-                <div class="stat-label">Rating Rata-rata</div>
+                <div class="stat-label">Rating</div>
             </div>
+        </div>
+
+        <!-- Filter and Search Row -->
+        <div style="display: flex; gap: 15px; margin-bottom: 30px; align-items: center;">
+            <select class="category-dropdown" style="background-color: #222; color: #fff; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-size: 14px;">
+                <option>Kategori</option>
+                <option>Ikan Hias</option>
+                <option>Ikan Konsumsi</option>
+                <option>Aksesoris</option>
+            </select>
+            <div class="search-bar" style="flex: 1; max-width: none;">
+                <svg class="search-icon" viewBox="0 0 24 24">
+                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                </svg>
+                <input type="text" class="search-input" placeholder="Cari produk...">
+            </div>
+            <button class="search-button" style="background-color: #4CAF50; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                </svg>
+            </button>
         </div>
 
         <!-- Filter Section -->
         <div class="filter-section">
             <button class="filter-button active" onclick="setFilter(this, 'all')">Semua</button>
-            <button class="filter-button" onclick="setFilter(this, 'electronics')">Elektronik</button>
-            <button class="filter-button" onclick="setFilter(this, 'fashion')">Fashion</button>
-            <button class="filter-button" onclick="setFilter(this, 'home')">Rumah Tangga</button>
-            <button class="filter-button" onclick="setFilter(this, 'books')">Buku</button>
-            <button class="filter-button" onclick="setFilter(this, 'sports')">Olahraga</button>
+            <button class="filter-button" onclick="setFilter(this, 'terpopuler')">Terpopuler</button>
+            <button class="filter-button" onclick="setFilter(this, 'harga_rendah')">Harga Rendah</button>
+            <button class="filter-button" onclick="setFilter(this, 'terbaru')">Terbaru</button>
+            <button class="filter-button" onclick="setFilter(this, 'rating_tinggi')">Rating Tinggi</button>
+            <button class="filter-button" onclick="setFilter(this, 'promo')">Promo</button>
         </div>
 
         <!-- Products Grid -->
@@ -393,80 +448,83 @@
         </div>
     </div>
 
+    <!-- Add Product Button -->
+    <button class="add-product-btn" onclick="addNewProduct()">+</button>
+
     <script>
-        // Sample product data
+        // Sample fish product data
         const products = [
             {
                 id: 1,
-                title: "Smartphone Gaming Pro",
-                description: "Smartphone gaming dengan performa tinggi, RAM 12GB, storage 256GB",
-                price: "Rp 8.999.000",
+                title: "Clown Fish",
+                description: "Ikan badut yang cantik dan mudah dipelihara",
+                price: "Rp25.000",
                 rating: 4.8,
-                category: "electronics",
-                icon: "📱"
+                category: "terpopuler",
+                image: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=300&h=200&fit=crop"
             },
             {
                 id: 2,
-                title: "Jaket Hoodie Premium",
-                description: "Jaket hoodie berkualitas tinggi, bahan cotton combed, tersedia berbagai warna",
-                price: "Rp 199.000",
+                title: "Ikan Cupang",
+                description: "Ikan cupang premium dengan warna indah",
+                price: "Rp15.000",
                 rating: 4.6,
-                category: "fashion",
-                icon: "👕"
+                category: "harga_rendah",
+                image: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=200&fit=crop"
             },
             {
                 id: 3,
-                title: "Coffee Maker Deluxe",
-                description: "Mesin pembuat kopi otomatis dengan 15 program brewing yang berbeda",
-                price: "Rp 2.450.000",
+                title: "Ikan Gurame",
+                description: "Ikan gurame segar untuk konsumsi",
+                price: "Rp35.000",
                 rating: 4.7,
-                category: "home",
-                icon: "☕"
+                category: "terbaru",
+                image: "https://images.unsplash.com/photo-1535591273668-578e31182c4f?w=300&h=200&fit=crop"
             },
             {
                 id: 4,
-                title: "Novel Bestseller",
-                description: "Koleksi novel terlaris tahun ini, cerita yang menarik dan menginspirasi",
-                price: "Rp 89.000",
+                title: "Ikan Angel",
+                description: "Ikan angel dengan sirip yang elegan",
+                price: "Rp45.000",
                 rating: 4.9,
-                category: "books",
-                icon: "📚"
+                category: "rating_tinggi",
+                image: "https://images.unsplash.com/photo-1571752726703-5e7d1f6a986d?w=300&h=200&fit=crop"
             },
             {
                 id: 5,
-                title: "Sepatu Running Elite",
-                description: "Sepatu lari profesional dengan teknologi shock absorber terbaru",
-                price: "Rp 1.299.000",
+                title: "Ikan Nemo",
+                description: "Ikan nemo lucu seperti di film",
+                price: "Rp30.000",
                 rating: 4.5,
-                category: "sports",
-                icon: "👟"
+                category: "terpopuler",
+                image: "https://images.unsplash.com/photo-1520637836862-4d197d17c11a?w=300&h=200&fit=crop"
             },
             {
                 id: 6,
-                title: "Laptop Ultrabook",
-                description: "Laptop tipis dan ringan, prosesor Intel i7 Gen 12, SSD 512GB",
-                price: "Rp 15.999.000",
+                title: "Ikan Koi",
+                description: "Ikan koi premium dengan pola menarik",
+                price: "Rp85.000",
                 rating: 4.8,
-                category: "electronics",
-                icon: "💻"
+                category: "promo",
+                image: "https://images.unsplash.com/photo-1583212292454-1fe6229603b7?w=300&h=200&fit=crop"
             },
             {
                 id: 7,
-                title: "Tas Ransel Traveling",
-                description: "Tas ransel anti air dengan kapasitas 35L, cocok untuk traveling dan hiking",
-                price: "Rp 350.000",
+                title: "Ikan Mas Koki",
+                description: "Ikan mas koki dengan bentuk unik",
+                price: "Rp20.000",
                 rating: 4.4,
-                category: "fashion",
-                icon: "🎒"
+                category: "harga_rendah",
+                image: "https://images.unsplash.com/photo-1524704654690-b56c05c78a00?w=300&h=200&fit=crop"
             },
             {
                 id: 8,
-                title: "Air Fryer Digital",
-                description: "Penggorengan tanpa minyak dengan kontrol digital dan 8 menu preset",
-                price: "Rp 899.000",
+                title: "Ikan Discus",
+                description: "Ikan discus eksotis untuk akuarium",
+                price: "Rp120.000",
                 rating: 4.6,
-                category: "home",
-                icon: "🍳"
+                category: "terbaru",
+                image: "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=300&h=200&fit=crop"
             }
         ];
 
@@ -482,21 +540,15 @@
                 productCard.onclick = () => viewProduct(product.id);
                 
                 productCard.innerHTML = `
-                    <div class="product-image">
-                        ${product.icon}
+                    <div class="product-image" style="background-image: url('${product.image}'); background-size: cover; background-position: center;">
                     </div>
                     <div class="product-info">
                         <div class="product-title">${product.title}</div>
-                        <div class="product-description">${product.description}</div>
-                        <div class="product-footer">
-                            <div class="product-price">${product.price}</div>
-                            <div class="product-rating">
-                                ⭐ ${product.rating}
-                            </div>
+                        <div class="product-price">${product.price}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                            <button class="edit-btn" onclick="editProduct(event, ${product.id})" style="background: none; border: none; color: #ff6b35; cursor: pointer; font-size: 18px;">✏️</button>
+                            <button class="add-to-cart">Beli Aja</button>
                         </div>
-                        <button class="add-to-cart" onclick="addToCart(event, ${product.id})">
-                            Tambah ke Keranjang
-                        </button>
                     </div>
                 `;
                 
@@ -540,12 +592,29 @@
             }
         }
 
-        function addToCart(event, productId) {
-            event.stopPropagation(); // Prevent card click
+        function editProduct(event, productId) {
+            event.stopPropagation();
             const product = products.find(p => p.id === productId);
             if (product) {
-                alert(`"${product.title}" telah ditambahkan ke keranjang!`);
+                alert(`Edit produk: ${product.title}`);
             }
+        }
+
+        function addNewProduct() {
+            alert('Menambahkan produk baru...');
+            // Di sini Anda bisa menambahkan logika untuk menampilkan form tambah produk baru
+            // Contoh:
+            // const newProduct = {
+            //     id: products.length + 1,
+            //     title: prompt("Masukkan nama produk:"),
+            //     description: prompt("Masukkan deskripsi produk:"),
+            //     price: prompt("Masukkan harga produk:"),
+            //     rating: 0,
+            //     category: "terbaru",
+            //     image: "https://via.placeholder.com/300x200?text=Produk+Baru"
+            // };
+            // products.unshift(newProduct);
+            // renderProducts();
         }
 
         // Search functionality

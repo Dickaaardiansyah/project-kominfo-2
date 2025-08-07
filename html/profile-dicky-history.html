@@ -90,6 +90,11 @@
             cursor: pointer;
             margin-right: 20px;
             padding: 5px;
+            transition: color 0.3s ease;
+        }
+
+        .back-button:hover {
+            color: #4CAF50;
         }
 
         .page-title {
@@ -422,38 +427,12 @@
         <!-- Header -->
         <div class="header">
             <div class="header-left">
-                <button class="back-button" id="menuToggle">
+                <button class="back-button" onclick="goBack()">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
                     </svg>
                 </button>
-                <h1 class="page-title">Riwayat Transaksi</h1>
-            </div>
-            <div class="filter-tabs">
-                <button class="tab-button active" onclick="setFilter(this, 'all')">Semua</button>
-                <button class="tab-button" onclick="setFilter(this, 'completed')">Selesai</button>
-                <button class="tab-button" onclick="setFilter(this, 'pending')">Pending</button>
-                <button class="tab-button" onclick="setFilter(this, 'cancelled')">Dibatalkan</button>
-            </div>
-        </div>
-
-        <!-- Stats Overview -->
-        <div class="stats-overview">
-            <div class="stat-card">
-                <div class="stat-number" id="totalTransactions">0</div>
-                <div class="stat-label">Total Transaksi</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="completedTransactions">0</div>
-                <div class="stat-label">Transaksi Selesai</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="totalSpent">Rp 0</div>
-                <div class="stat-label">Total Pengeluaran</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="avgTransaction">Rp 0</div>
-                <div class="stat-label">Rata-rata Transaksi</div>
+                <h1 class="page-title">History</h1>
             </div>
         </div>
 
@@ -464,113 +443,8 @@
     </div>
 
     <script>
-        // Sample transaction data
-        const transactions = [
-            {
-                id: "TRX001234567",
-                date: "2024-08-07 14:30:00",
-                status: "completed",
-                items: [
-                    {
-                        icon: "📱",
-                        name: "Smartphone Gaming Pro",
-                        description: "RAM 12GB, Storage 256GB",
-                        price: 8999000,
-                        quantity: 1
-                    }
-                ],
-                total: 8999000
-            },
-            {
-                id: "TRX001234566",
-                date: "2024-08-06 10:15:00",
-                status: "pending",
-                items: [
-                    {
-                        icon: "👕",
-                        name: "Jaket Hoodie Premium",
-                        description: "Cotton Combed, Size L",
-                        price: 199000,
-                        quantity: 2
-                    },
-                    {
-                        icon: "🎒",
-                        name: "Tas Ransel Traveling",
-                        description: "Anti Air, 35L",
-                        price: 350000,
-                        quantity: 1
-                    }
-                ],
-                total: 748000
-            },
-            {
-                id: "TRX001234565",
-                date: "2024-08-05 16:45:00",
-                status: "completed",
-                items: [
-                    {
-                        icon: "☕",
-                        name: "Coffee Maker Deluxe",
-                        description: "15 Program Brewing",
-                        price: 2450000,
-                        quantity: 1
-                    }
-                ],
-                total: 2450000
-            },
-            {
-                id: "TRX001234564",
-                date: "2024-08-04 09:20:00",
-                status: "cancelled",
-                items: [
-                    {
-                        icon: "💻",
-                        name: "Laptop Ultrabook",
-                        description: "Intel i7 Gen 12, SSD 512GB",
-                        price: 15999000,
-                        quantity: 1
-                    }
-                ],
-                total: 15999000
-            },
-            {
-                id: "TRX001234563",
-                date: "2024-08-03 11:30:00",
-                status: "completed",
-                items: [
-                    {
-                        icon: "📚",
-                        name: "Novel Bestseller",
-                        description: "Koleksi Terlaris 2024",
-                        price: 89000,
-                        quantity: 3
-                    },
-                    {
-                        icon: "👟",
-                        name: "Sepatu Running Elite",
-                        description: "Teknologi Shock Absorber",
-                        price: 1299000,
-                        quantity: 1
-                    }
-                ],
-                total: 1566000
-            },
-            {
-                id: "TRX001234562",
-                date: "2024-08-02 13:15:00",
-                status: "completed",
-                items: [
-                    {
-                        icon: "🍳",
-                        name: "Air Fryer Digital",
-                        description: "8 Menu Preset",
-                        price: 899000,
-                        quantity: 1
-                    }
-                ],
-                total: 899000
-            }
-        ];
+        // Empty transaction data - changed from original sample data to empty array
+        const transactions = [];
 
         let currentFilter = 'all';
         let filteredTransactions = transactions;
@@ -611,10 +485,7 @@
                 timeline.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon">📋</div>
-                        <div class="empty-title">Belum Ada Transaksi</div>
-                        <div class="empty-description">
-                            Transaksi Anda akan muncul di sini setelah melakukan pembelian
-                        </div>
+                        <div class="empty-title">Oops, You still have no History</div>
                     </div>
                 `;
                 return;
@@ -724,43 +595,27 @@
             }
         }
 
-        function toggleSidebar() {
-            const sidebar = document.querySelector('.sidebar');
-            sidebar.classList.toggle('show');
+        // Simplified back button function - always shows back arrow
+        function goBack() {
+            // Check if we're on mobile and sidebar is hidden
+            if (window.innerWidth <= 640) {
+                // On mobile, could toggle sidebar or go back
+                const sidebar = document.querySelector('.sidebar');
+                if (!sidebar.classList.contains('show')) {
+                    sidebar.classList.add('show');
+                } else {
+                    window.history.back();
+                }
+            } else {
+                // On desktop, just go back
+                window.history.back();
+            }
         }
 
         // Initialize the page
         document.addEventListener('DOMContentLoaded', function() {
             renderTransactions();
             updateStats();
-            
-            // Mobile menu toggle
-            const menuToggle = document.getElementById('menuToggle');
-            if (window.innerWidth <= 640) {
-                menuToggle.onclick = toggleSidebar;
-            } else {
-                menuToggle.onclick = () => window.history.back();
-            }
-        });
-
-        // Update menu button behavior on resize
-        window.addEventListener('resize', function() {
-            const menuToggle = document.getElementById('menuToggle');
-            if (window.innerWidth <= 640) {
-                menuToggle.onclick = toggleSidebar;
-                menuToggle.innerHTML = `
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-                    </svg>
-                `;
-            } else {
-                menuToggle.onclick = () => window.history.back();
-                menuToggle.innerHTML = `
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-                    </svg>
-                `;
-            }
         });
     </script>
 </body>
