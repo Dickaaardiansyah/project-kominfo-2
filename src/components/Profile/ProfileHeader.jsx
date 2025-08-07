@@ -1,10 +1,12 @@
 // src/components/Profile/ProfileHeader.jsx
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function ProfileHeader({ title }) {
+  const navigate = useNavigate();
+
   const handleBackClick = () => {
-    // Logika untuk kembali ke halaman sebelumnya
-    console.log('Back button clicked');
+    navigate('/');
   };
 
   return (
@@ -19,4 +21,4 @@ function ProfileHeader({ title }) {
   );
 }
 
-export default ProfileHeader;
+export default ProfileHeader;
