@@ -63,9 +63,4 @@ FishPredictions.belongsTo(Users, {
   as: 'user'
 });
 
-Users.hasMany(FishPredictions, {
-  foreignKey: 'userId',
-  as: 'fishPredictions'
-});
-
 export default FishPredictions;
