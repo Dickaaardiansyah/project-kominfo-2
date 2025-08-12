@@ -20,7 +20,7 @@ export const getUsers = async (req, res) => {
         const user = await Users.findOne({
             where: { id: userId },
             attributes: [
-                'id', 'name', 'email'
+                'id', 'name', 'email', 'phone', 'gender'
             ]
         });
 
@@ -29,7 +29,7 @@ export const getUsers = async (req, res) => {
             return res.status(404).json({ msg: "User tidak ditemukan" });
         }
 
-        console.log('User found:', user.name);
+        console.log('User found:', user.name, 'Phone:', user.phone, 'Gender:', user.gender);
         res.json(user); // Return single object
 
     } catch (error) {
