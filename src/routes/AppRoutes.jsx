@@ -8,7 +8,8 @@ import Scan from "../pages/Scan";
 import Profile from "../pages/Profile";
 import History from "../pages/History";
 import Marketplace from "../pages/Marketplace";
-import AddKatalogPage from "../pages/AddKatalogPage"; // ⬅️ Import halaman AddKatalog
+import AddKatalogPage from "../pages/AddKatalogPage";
+import Dashboard from "../pages/admin/Dashboard";
 
 export function AppRoutes() {
   return (
@@ -31,6 +32,9 @@ export function AppRoutes() {
         
         {/* Optional: 404 page */}
         <Route path="*" element={<h1>404 - Halaman Tidak Ditemukan</h1>} />
+
+        {/* Admin Dashboard */}
+        <Route path="/admin/dashboard" element={<Dashboard />} />
       </Routes>
     </BrowserRouter>
   );
