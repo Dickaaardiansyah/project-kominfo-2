@@ -10,6 +10,7 @@ import History from "../pages/History";
 import Marketplace from "../pages/Marketplace";
 import AddKatalogPage from "../pages/AddKatalogPage";
 import Dashboard from "../pages/admin/Dashboard";
+import AdminLogin from "../pages/admin/Login"; // ✅ Ubah nama import
 
 export function AppRoutes() {
   return (
@@ -28,13 +29,14 @@ export function AppRoutes() {
         <Route path="/profil" element={<Profile />} />
         <Route path="/history" element={<History/>} />
         <Route path="/marketplace" element={<Marketplace/>} />
-        <Route path="/katalog/tambah" element={<AddKatalogPage />} /> {/* ⬅️ Dipindah ke luar Layout */}
+        <Route path="/katalog/tambah" element={<AddKatalogPage />} />
         
         {/* Optional: 404 page */}
         <Route path="*" element={<h1>404 - Halaman Tidak Ditemukan</h1>} />
 
         {/* Admin Dashboard */}
         <Route path="/admin/dashboard" element={<Dashboard />} />
+        <Route path="/admin/login" element={<AdminLogin />} /> {/* ✅ Gunakan AdminLogin */}
       </Routes>
     </BrowserRouter>
   );
