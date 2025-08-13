@@ -1,28 +1,64 @@
-// src/components/Profile/ProfileItem.jsx
-import React from 'react';
+import React, { useState } from 'react';
+import { Edit2 } from 'lucide-react';
 
-function ProfileItem({ icon, label, value, editable }) {
+function ProfileItem({ id, icon, label, value, editable, onEdit }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value);
+
   const handleEditClick = () => {
-    // Logika untuk mengedit item
-    console.log(`Edit ${label}`);
+    if (!editable) return;
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    if (onEdit) {
+      onEdit(editValue);
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditValue(value);
+    setIsEditing(false);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    }
+    if (e.key === 'Escape') {
+      handleCancel();
+    }
   };
 
   return (
     <div className="profile-item">
       <div className="item-content">
         {icon && (
-          <svg className="item-icon" viewBox="0 0 24 24">
+          <div className="item-icon">
             {icon}
-          </svg>
+          </div>
         )}
         <span className="item-label">{label}</span>
-        <span className="item-value">{value}</span>
+        {isEditing ? (
+          <div className="edit-input-container">
+            <input
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyPress}
+              onBlur={handleSave}
+              autoFocus
+              className="edit-input"
+            />
+          </div>
+        ) : (
+          <span className="item-value">{value}</span>
+        )}
       </div>
-      {editable && (
+      {editable && !isEditing && (
         <button className="edit-button" onClick={handleEditClick}>
-          <svg className="edit-icon" viewBox="0 0 24 24">
-            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-          </svg>
+          <Edit2 size={16} />
         </button>
       )}
     </div>
