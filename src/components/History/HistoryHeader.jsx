@@ -1,38 +1,31 @@
-// src/components/History/HistoryHeader.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Search } from 'lucide-react';
 
-function HistoryHeader({ title, currentFilter, onFilterChange }) {
+function HistoryHeader({ title, onSearchChange, searchQuery }) {
   const navigate = useNavigate();
 
-  const filters = [
-    { id: 'all', label: 'Semua' },
-    { id: 'completed', label: 'Selesai' },
-    { id: 'pending', label: 'Pending' },
-    { id: 'cancelled', label: 'Dibatalkan' }
-  ];
+  const handleBackClick = () => {
+    navigate('/');
+  };
 
   return (
     <div className="header">
       <div className="header-left">
-        <button className="back-button" onClick={() => navigate(-1)}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-          </svg>
+        <button className="back-button" onClick={handleBackClick}>
+          <ArrowLeft size={24} />
         </button>
         <h1 className="page-title">{title}</h1>
       </div>
-      
-      <div className="filter-tabs">
-        {filters.map(filter => (
-          <button
-            key={filter.id}
-            className={`tab-button ${currentFilter === filter.id ? 'active' : ''}`}
-            onClick={() => onFilterChange(filter.id)}
-          >
-            {filter.label}
-          </button>
-        ))}
+      <div className="search-container">
+        <input
+          type="text"
+          placeholder="Search fish..."
+          className="search-input"
+          value={searchQuery || ''}
+          onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
+        />
+        <Search size={20} className="search-icon" />
       </div>
     </div>
   );
