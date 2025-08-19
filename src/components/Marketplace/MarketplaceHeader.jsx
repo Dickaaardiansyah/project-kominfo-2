@@ -3,7 +3,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search } from 'lucide-react';
 
-function MarketplaceHeader({ title, onSearch, searchQuery }) {
+function MarketplaceHeader({ title, onSearchChange, searchQuery }) {
   const navigate = useNavigate();
 
   const handleBackClick = () => {
@@ -24,7 +24,7 @@ function MarketplaceHeader({ title, onSearch, searchQuery }) {
           placeholder="Cari produk ikan..."
           className="search-input"
           value={searchQuery || ''}
-          onChange={(e) => onSearch && onSearch(e.target.value)}
+          onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
         />
         <Search size={20} className="search-icon" />
       </div>
