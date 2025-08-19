@@ -202,6 +202,20 @@ function HistoryContent({ searchQuery }) {
     // Implement actions (delete, favorite, rescan, etc.)
   };
 
+  // Di HistoryContent.js
+const sampleData = [
+  {
+    id: "FISH-2024-001",
+    // ... properti lainnya
+    fishData: {
+      name: "Ikan emas fir'aun",
+      // ... properti lainnya
+      safety_percentage: 92 // Tambahkan ini
+    }
+  },
+  // ... data lainnya
+]
+
   return (
     <div className="history-content">
       <FilterTabs 
@@ -234,4 +248,4 @@ function HistoryContent({ searchQuery }) {
   );
 }
 
-export default HistoryContent;
+export default HistoryContent;  
