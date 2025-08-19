@@ -1,4 +1,4 @@
-import React from 'react'
+import React from 'react';
 import styles from "../../styles/admin/Dashboard.module.css";
 import Sidebar from '../../components/admin/Sidebar';
 import Header from '../../components/admin/Header';
@@ -13,14 +13,13 @@ function Dashboard() {
             <main className={styles.mainContent}>
                 <Header />
                 <Grid />
-                      <div className={styles.verificationSection}>
+                <div className={styles.verificationSection}>
                     <Verif />
                     <Verifcard />
-                      </div>
+                </div>
             </main>
-
         </div>
-    )
+    );
 }
 
-export default Dashboard
+export default Dashboard;

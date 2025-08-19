@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { loginUser } from '../../../data/userLogin'; // Import API function
 import '../../../styles/login.css'; 
 
 function Login() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    email: '', // Ubah dari username ke email sesuai API
+    email: '',
     password: '',
     terms: false,
   });
   const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  // API Base URL
-  const API_BASE_URL = 'http://localhost:5000';
 
   useEffect(() => {
     const { email, password, terms } = form;
@@ -49,72 +47,28 @@ function Login() {
     setLoading(true);
     setError('');
 
-    try {
-      console.log('Attempting login with:', { email: form.email });
+    // Gunakan API function yang sudah rapi
+    const result = await loginUser({
+      email: form.email,
+      password: form.password
+    });
 
-      // Kirim request ke API
-      const response = await fetch(`${API_BASE_URL}/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-        }),
-      });
-
-      console.log('Login response status:', response.status);
-
-      const data = await response.json();
-      console.log('Login response data:', data);
-
-      if (response.ok && data.accessToken) {
-        // Login berhasil
-        console.log('Login successful!');
-        
-        // Simpan data ke localStorage
-        localStorage.setItem('token', data.accessToken);
-        localStorage.setItem('refreshToken', data.refreshToken);
-        
-        // Simpan user data jika ada
-        if (data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user));
-          localStorage.setItem('userId', data.user.id);
-        }
-
-        // Show success message
-        alert(`Login berhasil! Selamat datang ${data.user?.name || form.email}`);
-        
-        // Trigger custom event untuk update navbar
-        window.dispatchEvent(new Event('userLoggedIn'));
-        
-        // Redirect ke home
-        navigate('/');
-        
-        // Tidak perlu refresh lagi karena navbar sudah listen event
-
-      } else {
-        // Login gagal
-        throw new Error(data.msg || data.message || 'Login gagal');
-      }
-
-    } catch (error) {
-      console.error('Login error:', error);
+    if (result.success) {
+      // Login berhasil
+      alert(`Login berhasil! Selamat datang ${result.user?.name || form.email}`);
       
-      // Handle different types of errors
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        setError('Gagal terhubung ke server. Pastikan server berjalan di localhost:5000');
-      } else if (error.message.includes('401') || error.message.includes('Wrong')) {
-        setError('Email atau password salah');
-      } else if (error.message.includes('404') || error.message.includes('User not found')) {
-        setError('Email tidak terdaftar');
-      } else {
-        setError(error.message || 'Terjadi kesalahan saat login');
-      }
-    } finally {
-      setLoading(false);
+      // Trigger custom event untuk update navbar
+      window.dispatchEvent(new Event('userLoggedIn'));
+      
+      // Redirect ke home
+      navigate('/');
+      
+    } else {
+      // Login gagal
+      setError(result.message);
     }
+
+    setLoading(false);
   };
 
   const handleRegisterClick = (e) => {

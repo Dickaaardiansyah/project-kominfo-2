@@ -19,3 +19,16 @@ Content-Type: application/json
   "email": "maulana@example.com",
   "password": "password123"
 }
+
+### Register Admin
+POST http://localhost:5000/admin/create
+Content-Type: application/json
+
+{
+  "name": "Super Admin",
+  "phone": "081234567890",
+  "email": "superadmin@fishmap.com",
+  "gender": "male",
+  "password": "password123",
+  "role": "super_admin"
+}

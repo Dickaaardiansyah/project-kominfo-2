@@ -1,10 +1,8 @@
-import React from 'react'
+import React from 'react';
 import AdminLogin from '../../components/admin/auth/Login';
 
 function Login() {
-  return (
-    <AdminLogin />
-  )
+  return <AdminLogin />;
 }
 
-export default Login
+export default Login;

@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 // import Users from './models/userModel.js';
 // import FishPredictions from './models/fishPredictionModel.js';
+// import Admin from './models/adminModel.js';
 import router from './routes/index.js';
 
 dotenv.config();
@@ -19,6 +20,7 @@ try {
     console.log('Database connected...');
     // await Users.sync();
     // await FishPredictions.sync();
+    // await Admin.sync(); 
 } catch (error) {
     console.error('Database connection failed:', error);
 }

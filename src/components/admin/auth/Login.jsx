@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAdminAuth } from './AdminAuthContext';
+import { API_ENDPOINTS, apiCall } from '../../../config/api';
 
 function AdminLogin() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login, isAuthenticated } = useAdminAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -10,11 +16,19 @@ function AdminLogin() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Demo credentials
+  // Demo credentials untuk testing
   const DEMO_CREDENTIALS = {
     email: 'admin@fishmap.com',
     password: 'admin123'
   };
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      const from = location.state?.from?.pathname || '/admin/dashboard';
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, location]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -37,24 +51,53 @@ function AdminLogin() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    // Simulate API call
-    setTimeout(() => {
-      if (formData.email === DEMO_CREDENTIALS.email && formData.password === DEMO_CREDENTIALS.password) {
+    try {
+      // API call ke backend menggunakan config
+      const response = await apiCall(API_ENDPOINTS.ADMIN_LOGIN, {
+        method: 'POST',
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        // Login berhasil
         setSuccessMessage('Login berhasil! Mengalihkan ke dashboard...');
-        // In real implementation, redirect to dashboard
+        
+        // Use AuthContext login method
+        login(result.accessToken, result.admin);
+        
+        console.log('Admin logged in:', result.admin);
+
+        // Redirect ke dashboard atau halaman yang diminta sebelumnya
         setTimeout(() => {
-          alert('Login berhasil! Dalam implementasi nyata, akan redirect ke dashboard.');
+          const from = location.state?.from?.pathname || '/admin/dashboard';
+          navigate(from, { replace: true });
         }, 1500);
+
       } else {
-        setErrorMessage('Email atau password tidak valid. Silakan periksa kembali kredensial Anda.');
+        // Login gagal
+        setErrorMessage(result.msg || 'Login gagal. Silakan periksa kembali kredensial Anda.');
       }
+
+    } catch (error) {
+      console.error('Login error:', error);
+      setErrorMessage('Terjadi kesalahan koneksi. Silakan coba lagi.');
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleForgotPassword = (e) => {
     e.preventDefault();
     alert('Fitur lupa password akan segera tersedia. Hubungi administrator untuk reset password.');
+  };
+
+  const fillDemoCredentials = () => {
+    setFormData(DEMO_CREDENTIALS);
   };
 
   const inputStyles = {
@@ -127,11 +170,14 @@ function AdminLogin() {
           borderRadius: '8px',
           fontSize: '12px',
           maxWidth: '200px',
-          zIndex: 10
-        }}>
+          zIndex: 10,
+          cursor: 'pointer'
+        }} onClick={fillDemoCredentials}>
           <strong>Demo Login:</strong><br />
           Email: admin@fishmap.com<br />
           Password: admin123
+          <br />
+          <small style={{color: '#94a3b8'}}>👆 Klik untuk auto-fill</small>
         </div>
 
         <div className="logo-section" style={{
@@ -210,7 +256,7 @@ function AdminLogin() {
           </div>
         )}
 
-        <div>
+        <form onSubmit={handleSubmit}>
           <div className="form-group" style={{ marginBottom: '24px' }}>
             <label 
               htmlFor="email"
@@ -358,8 +404,7 @@ function AdminLogin() {
           </div>
 
           <button 
-            type="button"
-            onClick={handleSubmit}
+            type="submit"
             disabled={isLoading}
             className="login-btn"
             style={{
@@ -407,7 +452,7 @@ function AdminLogin() {
             )}
             <span>{isLoading ? 'Memverifikasi...' : 'Masuk ke Dashboard'}</span>
           </button>
-        </div>
+        </form>
 
         <div className="divider" style={{
           margin: '32px 0',
