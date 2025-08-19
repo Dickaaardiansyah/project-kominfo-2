@@ -15,27 +15,92 @@ function Marketplace() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    // Ini bisa diganti dengan API call
+    // Sample data yang lebih lengkap
     const sampleData = [
       {
         id: 1,
-        title: "Clown Fish",
-        description: "Ikan badut yang cantik dan mudah dipelihara",
-        price: "Rp25.000",
+        title: "Clown Fish Premium",
+        description: "Ikan badut yang cantik dan mudah dipelihara. Cocok untuk pemula.",
+        price: "Rp 25.000",
+        originalPrice: "Rp 30.000",
         rating: 4.8,
+        reviews: 124,
         category: "terpopuler",
+        stock: 15,
+        seller: "AquaFish Store",
+        location: "Jakarta Selatan",
         image: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=300&h=200&fit=crop"
       },
       {
         id: 2,
-        title: "Ikan Cupang",
-        description: "Ikan cupang premium dengan warna indah",
-        price: "Rp15.000",
+        title: "Ikan Cupang Super Red",
+        description: "Ikan cupang premium dengan warna merah menyala yang indah",
+        price: "Rp 15.000",
+        originalPrice: "Rp 20.000",
         rating: 4.6,
+        reviews: 89,
         category: "harga_rendah",
+        stock: 8,
+        seller: "Betta Kingdom",
+        location: "Bandung",
         image: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=200&fit=crop"
       },
-      // Data produk lainnya...
+      {
+        id: 3,
+        title: "Angelfish Black Diamond",
+        description: "Ikan angel hitam elegan untuk aquarium besar",
+        price: "Rp 45.000",
+        originalPrice: null,
+        rating: 4.9,
+        reviews: 156,
+        category: "rating_tinggi",
+        stock: 5,
+        seller: "Premium Aquatics",
+        location: "Surabaya",
+        image: "https://images.unsplash.com/photo-1520637836862-4d197d17c2a2?w=300&h=200&fit=crop"
+      },
+      {
+        id: 4,
+        title: "Neon Tetra School Pack",
+        description: "Paket 10 ekor neon tetra untuk aquarium komunitas",
+        price: "Rp 35.000",
+        originalPrice: "Rp 40.000",
+        rating: 4.7,
+        reviews: 203,
+        category: "promo",
+        stock: 12,
+        seller: "Tetra World",
+        location: "Yogyakarta",
+        image: "https://images.unsplash.com/photo-1535591273668-578e31182c4f?w=300&h=200&fit=crop"
+      },
+      {
+        id: 5,
+        title: "Goldfish Oranda",
+        description: "Ikan mas koki oranda dengan tutup kepala yang indah",
+        price: "Rp 50.000",
+        originalPrice: null,
+        rating: 4.5,
+        reviews: 67,
+        category: "terbaru",
+        stock: 3,
+        seller: "Goldfish Paradise",
+        location: "Medan",
+        image: "https://images.unsplash.com/photo-1544551763-77ef2d0cfc6c?w=300&h=200&fit=crop"
+      },
+      {
+        id: 6,
+        title: "Discus Blue Diamond",
+        description: "Ikan discus biru premium untuk aquarium show tank",
+        price: "Rp 150.000",
+        originalPrice: "Rp 175.000",
+        rating: 4.9,
+        reviews: 45,
+        category: "terpopuler",
+        stock: 2,
+        seller: "Discus Expert",
+        location: "Jakarta Utara",
+        image: "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=300&h=200&fit=crop"
+      }
     ];
     
     setProducts(sampleData);
@@ -63,7 +128,8 @@ function Marketplace() {
       const searchTermLower = term.toLowerCase();
       result = result.filter(product => 
         product.title.toLowerCase().includes(searchTermLower) ||
-        product.description.toLowerCase().includes(searchTermLower)
+        product.description.toLowerCase().includes(searchTermLower) ||
+        product.seller.toLowerCase().includes(searchTermLower)
       );
     }
     
@@ -71,95 +137,86 @@ function Marketplace() {
   };
 
   const handleAddProduct = () => {
-    const newProduct = {
-      id: products.length + 1,
-      title: prompt("Masukkan nama produk:"),
-      description: prompt("Masukkan deskripsi produk:"),
-      price: prompt("Masukkan harga produk:"),
-      rating: 0,
-      category: "terbaru",
-      image: "https://via.placeholder.com/300x200?text=Produk+Baru"
-    };
+    const title = prompt("Masukkan nama produk:");
+    const description = prompt("Masukkan deskripsi produk:");
+    const price = prompt("Masukkan harga produk (contoh: Rp 25.000):");
     
-    if (newProduct.title && newProduct.description && newProduct.price) {
+    if (title && description && price) {
+      const newProduct = {
+        id: products.length + 1,
+        title: title,
+        description: description,
+        price: price,
+        originalPrice: null,
+        rating: 0,
+        reviews: 0,
+        category: "terbaru",
+        stock: 10,
+        seller: "Toko Saya",
+        location: "Jakarta",
+        image: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=300&h=200&fit=crop"
+      };
+      
       const updatedProducts = [newProduct, ...products];
       setProducts(updatedProducts);
       filterProducts(currentFilter, searchTerm);
+      alert('Produk berhasil ditambahkan!');
+    }
+  };
+
+  const handleViewProduct = (id) => {
+    const product = products.find(p => p.id === id);
+    if (product) {
+      alert(`Melihat detail produk: ${product.title}\n\nHarga: ${product.price}\nStok: ${product.stock}\nPenjual: ${product.seller}`);
+    }
+  };
+
+  const handleEditProduct = (id) => {
+    const product = products.find(p => p.id === id);
+    if (product) {
+      const newTitle = prompt("Edit nama produk:", product.title);
+      const newPrice = prompt("Edit harga produk:", product.price);
+      
+      if (newTitle && newPrice) {
+        const updatedProducts = products.map(p => 
+          p.id === id ? { ...p, title: newTitle, price: newPrice } : p
+        );
+        setProducts(updatedProducts);
+        filterProducts(currentFilter, searchTerm);
+        alert('Produk berhasil diupdate!');
+      }
     }
   };
 
   return (
     <div className="marketplace-container">
-      <Sidebar activeItem="marketplace" />
+      <Sidebar />
       <div className="main-content">
         <MarketplaceHeader 
           title="Marketplace" 
           onSearch={handleSearch}
+          searchQuery={searchTerm}
         />
         
-        <StatsSection />
-        
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', alignItems: 'center' }}>
-          <select 
-            className="category-dropdown" 
-            style={{ 
-              backgroundColor: '#222', 
-              color: '#fff', 
-              border: 'none', 
-              padding: '10px 20px', 
-              borderRadius: '20px', 
-              cursor: 'pointer', 
-              fontSize: '14px'
-            }}
-          >
-            <option>Kategori</option>
-            <option>Ikan Hias</option>
-            <option>Ikan Konsumsi</option>
-            <option>Aksesoris</option>
-          </select>
-          
-          <div className="search-bar" style={{ flex: 1, maxWidth: 'none' }}>
-            <svg className="search-icon" viewBox="0 0 24 24">
-              <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-            </svg>
-            <input 
-              type="text" 
-              className="search-input" 
-              placeholder="Cari produk..."
-              value={searchTerm}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
-          </div>
-          
-          <button 
-            className="search-button" 
-            style={{ 
-              backgroundColor: '#4CAF50', 
-              border: 'none', 
-              borderRadius: '50%', 
-              width: '40px', 
-              height: '40px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              cursor: 'pointer'
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-              <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-            </svg>
-          </button>
-        </div>
+        <StatsSection products={filteredProducts} />
         
         <FilterSection 
           currentFilter={currentFilter}
           onFilterChange={handleFilterChange}
+          productCounts={{
+            all: products.length,
+            terpopuler: products.filter(p => p.category === 'terpopuler').length,
+            harga_rendah: products.filter(p => p.category === 'harga_rendah').length,
+            terbaru: products.filter(p => p.category === 'terbaru').length,
+            rating_tinggi: products.filter(p => p.category === 'rating_tinggi').length,
+            promo: products.filter(p => p.category === 'promo').length
+          }}
         />
         
         <ProductsGrid 
           products={filteredProducts}
-          onViewProduct={(id) => console.log('View product:', id)}
-          onEditProduct={(id) => console.log('Edit product:', id)}
+          onViewProduct={handleViewProduct}
+          onEditProduct={handleEditProduct}
         />
       </div>
       
