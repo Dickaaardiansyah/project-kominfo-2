@@ -1,12 +1,11 @@
-// Update routes/index.js - tambahkan import dan routes baru
 import express from 'express';
 import {
   getUsers,
   Register,
   Login,
   Logout,
-  verifyOTP,      // ⭐ NEW
-  resendOTP       // ⭐ NEW
+  verifyOTP,
+  resendOTP
 } from '../controllers/Users.js';
 import {
   predictTabular,
@@ -18,39 +17,108 @@ import {
 } from '../controllers/Models.js';
 import { verifyToken } from '../middleware/VerifyToken.js';
 import { refreshToken } from '../controllers/RefreshToken.js';
-
-// Import admin controllers
 import {
   getAdmin,
-  createAdmin,     // Ganti dari registerAdmin
+  createAdmin,
   loginAdmin,
   logoutAdmin,
   getAllAdmins,
   updateAdminStatus,
   updateAdminPassword
 } from '../controllers/Admin.js';
-
-// Import admin middleware
 import { verifyAdminToken, requireSuperAdmin } from '../middleware/VerifyAdminToken.js';
-
-// Import admin refresh token
 import { refreshAdminToken } from '../controllers/AdminRefreshToken.js';
 import multer from 'multer';
+import Users from '../models/userModel.js';
+import { Op } from 'sequelize';
+import bcrypt from 'bcrypt'; // Tambahkan bcrypt untuk hash password
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
 // ==================== AUTH ROUTES ====================
-// Existing routes
 router.get('/users', verifyToken, getUsers);
-router.post('/users', Register);                    // Step 1: Register + Send OTP
+router.post('/users', Register);
 router.post('/login', Login);
-router.get('/token', refreshToken);
+router.post('/token', refreshToken);
 router.delete('/logout', Logout);
 
-// ⭐ NEW OTP Routes
-router.post('/verify-otp', verifyOTP);              // Step 2: Verify OTP + Activate Account
-router.post('/resend-otp', resendOTP);              // Resend OTP jika expired/tidak terima
+// OTP Routes
+router.post('/verify-otp', verifyOTP);
+router.post('/resend-otp', resendOTP);
+
+// Endpoint untuk memperbarui data profil
+router.put('/users/update', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId; // Dapatkan userId dari token
+    const { username, email, password, phone, gender, birthday } = req.body;
+
+    // Validasi input
+    const updateData = {};
+    if (username) {
+      if (username.length < 2) {
+        return res.status(400).json({ msg: 'Nama pengguna minimal 2 karakter' });
+      }
+      updateData.name = username; // Sesuaikan dengan field di database
+    }
+    if (email) {
+      if (!email.includes('@')) {
+        return res.status(400).json({ msg: 'Format email tidak valid' });
+      }
+      const existingEmail = await Users.findOne({
+        where: { email, id: { [Op.ne]: userId } }
+      });
+      if (existingEmail) {
+        return res.status(400).json({ msg: 'Email sudah digunakan' });
+      }
+      updateData.email = email;
+    }
+    if (password && password !== '***********') {
+      if (password.length < 6) {
+        return res.status(400).json({ msg: 'Password minimal 6 karakter' });
+      }
+      updateData.password = await bcrypt.hash(password, 10); // Hash password
+    }
+    if (phone) {
+      if (phone.length < 8 || !/^\d+$/.test(phone)) {
+        return res.status(400).json({ msg: 'Nomor HP tidak valid, minimal 8 digit dan hanya angka' });
+      }
+      const existingPhone = await Users.findOne({
+        where: { phone, id: { [Op.ne]: userId } }
+      });
+      if (existingPhone) {
+        return res.status(400).json({ msg: 'Nomor HP sudah digunakan' });
+      }
+      updateData.phone = phone;
+    }
+    if (gender) {
+      if (!['male', 'female'].includes(gender)) {
+        return res.status(400).json({ msg: 'Jenis kelamin harus Laki-laki atau Perempuan' });
+      }
+      updateData.gender = gender;
+    }
+    if (birthday) {
+      const date = new Date(birthday);
+      if (isNaN(date) || date > new Date()) {
+        return res.status(400).json({ msg: 'Tanggal lahir tidak valid' });
+      }
+      updateData.birthday = birthday;
+    }
+
+    // Jika tidak ada data yang akan diperbarui
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ msg: 'Tidak ada data yang diperbarui' });
+    }
+
+    // Perbarui data pengguna
+    await Users.update(updateData, { where: { id: userId } });
+
+    res.status(200).json({ msg: 'Data profil berhasil diperbarui' });
+  } catch (error) {
+    console.error('Kesalahan saat memperbarui profil:', error);
+    res.status(500).json({ msg: 'Kesalahan server' });
+  }
+});
 
 // ==================== ML PREDICTION ROUTES ====================
 router.post('/predict', predictTabular);
@@ -64,18 +132,16 @@ router.post('/api/save-to-catalog', upload.single('image'), saveToCatalog);
 router.get('/api/get-scans', getScans);
 router.get('/api/get-catalog', getCatalog);
 
-
 // ==================== ADMIN AUTH ROUTES ====================
-// Public admin routes (tidak perlu token)
-router.post('/admin/create', createAdmin);              // Create admin manual (via API/Postman)
-router.post('/admin/login', loginAdmin);                // Login admin
-router.get('/admin/token', refreshAdminToken);          // Refresh admin token
-router.delete('/admin/logout', logoutAdmin);            // Logout admin
+router.post('/admin/create', createAdmin);
+router.post('/admin/login', loginAdmin);
+router.get('/admin/token', refreshAdminToken);
+router.delete('/admin/logout', logoutAdmin);
 
-// Protected admin routes (perlu token)
-router.get('/admin/profile', verifyAdminToken, getAdmin);                              // Get admin profile
-router.get('/admin/all', verifyAdminToken, requireSuperAdmin, getAllAdmins);           // Get all admins (super admin only)
-router.put('/admin/:adminId/status', verifyAdminToken, requireSuperAdmin, updateAdminStatus);    // Update admin status
-router.put('/admin/:adminId/password', verifyAdminToken, updateAdminPassword); 
+// Protected admin routes
+router.get('/admin/profile', verifyAdminToken, getAdmin);
+router.get('/admin/all', verifyAdminToken, requireSuperAdmin, getAllAdmins);
+router.put('/admin/:adminId/status', verifyAdminToken, requireSuperAdmin, updateAdminStatus);
+router.put('/admin/:adminId/password', verifyAdminToken, updateAdminPassword);
 
 export default router;

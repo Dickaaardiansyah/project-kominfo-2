@@ -6,20 +6,20 @@ export const refreshToken = async (req, res) => {
         const refreshToken = req.cookies.refreshToken;
         if (!refreshToken) return res.sendStatus(401);
         
-        // ✅ Fix 1: Gunakan findOne() bukan findAll()
+        // Gunakan findOne() untuk mencari user
         const user = await Users.findOne({
             where: {
                 refresh_token: refreshToken
             }
         });
 
-        // ✅ Fix 2: Cek user dengan benar
+        // Cek apakah user ditemukan
         if (!user) return res.sendStatus(403);
 
         jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, (err, decoded) => {
             if (err) return res.sendStatus(403);
 
-            // ✅ Fix 3: Langsung akses properti (tanpa [0])
+            // Langsung akses properti user
             const userId = user.id;
             const name = user.name;
             const email = user.email;
@@ -27,13 +27,13 @@ export const refreshToken = async (req, res) => {
             const accessToken = jwt.sign(
                 { userId, name, email },
                 process.env.ACCESS_TOKEN_SECRET,
-                { expiresIn: '15m' } // ✅ Konsisten dengan login (15 menit)
+                { expiresIn: '15m' } // Konsisten dengan login (15 menit)
             );
 
             res.json({ accessToken });
         });
     } catch (error) {
-        console.error('Refresh token error:', error);
-        res.status(500).json({ msg: "Server error" });
+        console.error('Kesalahan refresh token:', error);
+        res.status(500).json({ msg: "Kesalahan server" });
     }
 };
