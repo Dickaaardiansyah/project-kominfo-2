@@ -4,15 +4,16 @@ import StatsSection from './StatsSection';
 import FilterSection from './FilterSection';
 import ProductsGrid from './ProductsGrid';
 import AddProductButton from './AddProductButton';
-import RegistrationPrompt from './RegistrationPrompt'; // Import baru
+import RegistrationPrompt from './RegistrationPrompt';
+import UploadIDPage from './UploadIDPage';
 
 function MarketplaceContent({ searchQuery, isRegistered, setIsRegistered }) {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [currentFilter, setCurrentFilter] = useState('all');
+  const [registrationStep, setRegistrationStep] = useState('prompt');
 
   useEffect(() => {
-    // Sample data yang lebih lengkap
     const sampleData = [
       {
         id: 1,
@@ -104,16 +105,13 @@ function MarketplaceContent({ searchQuery, isRegistered, setIsRegistered }) {
     setFilteredProducts(sampleData);
   }, []);
 
-  // Filter products berdasarkan kategori dan search query
   useEffect(() => {
     let filtered = products;
 
-    // Filter berdasarkan kategori
     if (currentFilter !== 'all') {
       filtered = products.filter(product => product.category === currentFilter);
     }
 
-    // Filter berdasarkan search query
     if (searchQuery && searchQuery.trim()) {
       const searchTermLower = searchQuery.toLowerCase();
       filtered = filtered.filter(product => 
@@ -180,10 +178,32 @@ function MarketplaceContent({ searchQuery, isRegistered, setIsRegistered }) {
     }
   };
 
+  const handleRegisterClick = () => {
+    setRegistrationStep('upload-id');
+  };
+
+  const handleIDUploadComplete = () => {
+    setRegistrationStep('complete');
+    setIsRegistered(true);
+  };
+
+  const handleBackToPrompt = () => {
+    setRegistrationStep('prompt');
+  };
+
+  if (registrationStep === 'upload-id') {
+    return (
+      <UploadIDPage 
+        onBack={handleBackToPrompt}
+        onContinue={handleIDUploadComplete}
+      />
+    );
+  }
+
   if (!isRegistered) {
     return (
       <RegistrationPrompt 
-        onRegister={() => setIsRegistered(true)} // Simulasi registrasi sukses
+        onRegister={handleRegisterClick}
       />
     );
   }

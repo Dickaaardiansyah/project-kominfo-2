@@ -14,6 +14,7 @@ function RegistrationPrompt({ onRegister }) {
         textAlign: 'center',
         color: '#ffffff',
         padding: '20px',
+        backgroundColor: '#1a1a1a'
       }}
     >
       <h2 
@@ -29,6 +30,7 @@ function RegistrationPrompt({ onRegister }) {
           fontSize: '16px',
           color: '#a0a0a0',
           marginBottom: '20px',
+          maxWidth: '400px'
         }}
       >
         Daftarkan Biodatamu terlebih dahulu untuk membuka usaha anda
