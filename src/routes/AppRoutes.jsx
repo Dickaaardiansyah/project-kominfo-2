@@ -44,6 +44,8 @@ export function AppRoutes() {
           <Route path="/history" element={<History/>} />
           <Route path="/marketplace" element={<Marketplace/>} />
           <Route path="/katalog/tambah" element={<AddKatalogPage />} />
+
+          
           
           {/* Admin Routes - Protected */}
           <Route path="/admin/login" element={<AdminLogin />} />

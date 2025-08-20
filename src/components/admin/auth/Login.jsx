@@ -18,8 +18,8 @@ function AdminLogin() {
 
   // Demo credentials untuk testing
   const DEMO_CREDENTIALS = {
-    email: 'admin@fishmap.com',
-    password: 'admin123'
+    email: 'superadmin@fishmap.com',
+    password: 'password123'
   };
 
   // Redirect if already authenticated
@@ -174,8 +174,8 @@ function AdminLogin() {
           cursor: 'pointer'
         }} onClick={fillDemoCredentials}>
           <strong>Demo Login:</strong><br />
-          Email: admin@fishmap.com<br />
-          Password: admin123
+          Email: superadmin@fishmap.com<br />
+          Password: password123
           <br />
           <small style={{color: '#94a3b8'}}>👆 Klik untuk auto-fill</small>
         </div>
@@ -275,7 +275,7 @@ function AdminLogin() {
                 type="email" 
                 id="email" 
                 name="email" 
-                placeholder="admin@fishmap.com"
+                placeholder="superadmin@fishmap.com"
                 value={formData.email}
                 onChange={handleInputChange}
                 required

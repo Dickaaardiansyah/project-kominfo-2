@@ -52,28 +52,6 @@ const Admin = db.define("admins", {
     defaultValue: "active",
     comment: 'Status admin: active, inactive, suspended'
   },
-  // ⭐ Tambahan untuk OTP Email (sama seperti Users)
-  otp_code: {
-    type: DataTypes.STRING(6),
-    allowNull: true,
-    comment: 'Kode OTP 6 digit untuk verifikasi email'
-  },
-  otp_expires: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    comment: 'Waktu expired OTP'
-  },
-  is_verified: {
-    type: DataTypes.BOOLEAN,
-    allowNull: false,
-    defaultValue: false,
-    comment: 'Status verifikasi email'
-  },
-  email_verified_at: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    comment: 'Waktu email diverifikasi'
-  },
   // ⭐ Session Management
   refresh_token: {
     type: DataTypes.TEXT,
@@ -108,7 +86,10 @@ const Admin = db.define("admins", {
     beforeUpdate: (admin, options) => {
       if (options.adminId) {
         admin.updated_by = options.adminId;
-        admin.last_login = new Date(); // Update last login saat update
+      }
+      // Update last login saat login berhasil
+      if (admin.changed('refresh_token') && admin.refresh_token) {
+        admin.last_login = new Date();
       }
     }
   }
