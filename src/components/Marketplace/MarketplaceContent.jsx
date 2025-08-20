@@ -4,8 +4,9 @@ import StatsSection from './StatsSection';
 import FilterSection from './FilterSection';
 import ProductsGrid from './ProductsGrid';
 import AddProductButton from './AddProductButton';
+import RegistrationPrompt from './RegistrationPrompt'; // Import baru
 
-function MarketplaceContent({ searchQuery }) {
+function MarketplaceContent({ searchQuery, isRegistered, setIsRegistered }) {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [currentFilter, setCurrentFilter] = useState('all');
@@ -178,6 +179,14 @@ function MarketplaceContent({ searchQuery }) {
       }
     }
   };
+
+  if (!isRegistered) {
+    return (
+      <RegistrationPrompt 
+        onRegister={() => setIsRegistered(true)} // Simulasi registrasi sukses
+      />
+    );
+  }
 
   return (
     <div className="marketplace-content">

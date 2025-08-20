@@ -7,6 +7,7 @@ import '../styles/Marketplace.css';
 
 function Marketplace() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRegistered, setIsRegistered] = useState(false); // State baru untuk registrasi
 
   const handleSearchChange = (query) => {
     setSearchQuery(query);
@@ -21,7 +22,11 @@ function Marketplace() {
           onSearchChange={handleSearchChange}
           searchQuery={searchQuery}
         />
-        <MarketplaceContent searchQuery={searchQuery} />
+        <MarketplaceContent 
+          searchQuery={searchQuery} 
+          isRegistered={isRegistered}
+          setIsRegistered={setIsRegistered}
+        />
       </div>
     </div>
   );
