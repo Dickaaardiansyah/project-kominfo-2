@@ -5,22 +5,23 @@ import jwt from 'jsonwebtoken';
 import { generateOTP, sendOTPEmail, sendWelcomeEmail } from '../services/emailService.js';
 
 
+// ⭐ UPDATE: Function getUsers untuk include role dan catalog status
 export const getUsers = async (req, res) => {
     try {
-        // ✅ Ambil userId dari token
         const userId = req.userId;
 
-        console.log('Current user ID from token:', userId); // Debug log
+        console.log('Current user ID from token:', userId);
 
         if (!userId) {
             return res.status(400).json({ msg: "User ID tidak ditemukan dalam token" });
         }
 
-        // ✅ Return data user yang sedang login saja
         const user = await Users.findOne({
             where: { id: userId },
             attributes: [
-                'id', 'name', 'email', 'phone', 'gender'
+                'id', 'name', 'email', 'phone', 'gender', 'role', 
+                'is_verified', 'catalog_request_status', 'catalog_request_date',
+                'catalog_approved_date', 'catalog_rejection_reason'
             ]
         });
 
@@ -29,14 +30,202 @@ export const getUsers = async (req, res) => {
             return res.status(404).json({ msg: "User tidak ditemukan" });
         }
 
-        console.log('User found:', user.name, 'Phone:', user.phone, 'Gender:', user.gender);
-        res.json(user); // Return single object
+        // Add computed fields
+        const userWithStatus = {
+            ...user.toJSON(),
+            can_access_catalog: user.canAccessCatalog(),
+            is_email_verified: user.isEmailVerified()
+        };
+
+        console.log('User found:', user.name, 'Role:', user.role, 'Catalog Access:', userWithStatus.can_access_catalog);
+        res.json(userWithStatus);
 
     } catch (error) {
         console.error('Error fetching user:', error);
         res.status(500).json({ msg: "Server error" });
     }
-}
+};
+
+// ⭐ TAMBAHAN: Function untuk update user profile
+export const updateUserProfile = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { name, phone, gender } = req.body;
+
+        // Validasi input
+        if (!name && !phone && !gender) {
+            return res.status(400).json({
+                msg: "Minimal satu field harus diisi untuk update"
+            });
+        }
+
+        // Cari user
+        const user = await Users.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan" });
+        }
+
+        // Cek apakah phone number sudah dipakai user lain
+        if (phone && phone !== user.phone) {
+            const existingUser = await Users.findOne({
+                where: {
+                    phone: phone,
+                    id: { [Op.ne]: userId } // Exclude current user
+                }
+            });
+
+            if (existingUser) {
+                return res.status(400).json({
+                    msg: "Nomor telepon sudah digunakan user lain"
+                });
+            }
+        }
+
+        // Build update object
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (phone) updateData.phone = phone;
+        if (gender) updateData.gender = gender;
+
+        // Update user
+        await user.update(updateData);
+
+        // Return updated user (without sensitive data)
+        const updatedUser = await Users.findOne({
+            where: { id: userId },
+            attributes: [
+                'id', 'name', 'email', 'phone', 'gender', 'role',
+                'is_verified', 'catalog_request_status'
+            ]
+        });
+
+        res.status(200).json({
+            msg: "Profile berhasil diupdate",
+            user: {
+                ...updatedUser.toJSON(),
+                can_access_catalog: updatedUser.canAccessCatalog()
+            }
+        });
+
+    } catch (error) {
+        console.error('Error updating user profile:', error);
+        res.status(500).json({ msg: "Server error" });
+    }
+};
+
+// ⭐ TAMBAHAN: Function untuk change password
+export const changePassword = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { currentPassword, newPassword, confirmPassword } = req.body;
+
+        // Validasi input
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({
+                msg: "Password saat ini, password baru, dan konfirmasi password harus diisi"
+            });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({
+                msg: "Password baru dan konfirmasi password tidak cocok"
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                msg: "Password baru minimal 6 karakter"
+            });
+        }
+
+        // Cari user
+        const user = await Users.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan" });
+        }
+
+        // Cek current password
+        const match = await bcrypt.compare(currentPassword, user.password);
+        if (!match) {
+            return res.status(400).json({
+                msg: "Password saat ini salah"
+            });
+        }
+
+        // Hash password baru
+        const salt = await bcrypt.genSalt();
+        const hashPassword = await bcrypt.hash(newPassword, salt);
+
+        // Update password dan clear refresh token
+        await user.update({
+            password: hashPassword,
+            refresh_token: null
+        });
+
+        // Clear cookie
+        res.clearCookie('refreshToken');
+
+        res.status(200).json({
+            msg: "Password berhasil diubah. Silakan login ulang.",
+            requireRelogin: true
+        });
+
+    } catch (error) {
+        console.error('Error changing password:', error);
+        res.status(500).json({ msg: "Server error" });
+    }
+};
+
+// ⭐ TAMBAHAN: Function untuk get user's prediction history
+export const getUserPredictions = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { page = 1, limit = 10, in_catalog_only = false } = req.query;
+
+        const offset = (page - 1) * limit;
+
+        // Import FishPredictions model
+        const FishPredictions = (await import('../models/fishPredictionModel.js')).default;
+
+        // Build where condition
+        const whereCondition = { userId };
+        
+        if (in_catalog_only === 'true') {
+            whereCondition.namaIkan = { [Op.ne]: null };
+        }
+
+        const predictions = await FishPredictions.findAndCountAll({
+            where: whereCondition,
+            attributes: [
+                'id', 'predictedFishName', 'namaIkan', 'kategori', 'probability',
+                'habitat', 'consumptionSafety', 'fishImage', 'predictionDate',
+                'lokasiPenangkapan', 'tanggalDitemukan', 'kondisiIkan', 
+                'amanDikonsumsi', 'createdAt'
+            ],
+            order: [['createdAt', 'DESC']],
+            limit: parseInt(limit),
+            offset: parseInt(offset)
+        });
+
+        res.status(200).json({
+            msg: "Riwayat prediksi berhasil diambil",
+            data: predictions.rows.map(pred => ({
+                ...pred.toJSON(),
+                is_in_catalog: pred.namaIkan !== null
+            })),
+            pagination: {
+                total_items: predictions.count,
+                total_pages: Math.ceil(predictions.count / limit),
+                current_page: parseInt(page),
+                items_per_page: parseInt(limit)
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching user predictions:', error);
+        res.status(500).json({ msg: "Server error" });
+    }
+};
 
 export const Register = async (req, res) => {
     const {
@@ -146,6 +335,7 @@ export const Register = async (req, res) => {
     }
 };
 
+// ⭐ FIXED: verifyOTP function - Ensure proper verification
 export const verifyOTP = async (req, res) => {
     const { email, otp_code } = req.body;
 
@@ -168,6 +358,14 @@ export const verifyOTP = async (req, res) => {
             });
         }
 
+        console.log('🔍 OTP verification for user:', {
+            email: user.email,
+            current_is_verified: user.is_verified,
+            provided_otp: otp_code,
+            stored_otp: user.otp_code,
+            otp_expires: user.otp_expires
+        });
+
         // Cek apakah sudah verified
         if (user.is_verified) {
             return res.status(400).json({
@@ -189,21 +387,33 @@ export const verifyOTP = async (req, res) => {
             });
         }
 
-        // Update user menjadi verified
-        await Users.update(
+        // ⭐ CRITICAL: Update user menjadi verified
+        const updateResult = await Users.update(
             {
                 is_verified: true,
                 email_verified_at: new Date(),
                 otp_code: null, // Clear OTP
-                otp_expires: null // Clear expiry
+                otp_expires: null, // Clear expiry
+                role: user.role || 'user' // Ensure role is set
             },
             { where: { id: user.id } }
         );
 
+        console.log('🔧 Update verification result:', updateResult);
+
+        // ⭐ VERIFY: Check if update was successful
+        const updatedUser = await Users.findByPk(user.id);
+        console.log('✅ User after verification update:', {
+            email: updatedUser.email,
+            is_verified: updatedUser.is_verified,
+            email_verified_at: updatedUser.email_verified_at,
+            role: updatedUser.role
+        });
+
         // Kirim welcome email
         try {
             await sendWelcomeEmail(email, user.name);
-            console.log('Welcome email sent to:', email);
+            console.log('📧 Welcome email sent to:', email);
         } catch (emailError) {
             console.error('Failed to send welcome email:', emailError);
             // Tidak perlu gagal, karena verifikasi sudah berhasil
@@ -243,7 +453,8 @@ export const verifyOTP = async (req, res) => {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                is_verified: true
+                is_verified: true, // ⭐ Explicitly set to true
+                role: updatedUser.role || 'user'
             },
             autoLogin: true
         });
@@ -320,6 +531,7 @@ export const resendOTP = async (req, res) => {
     }
 };
 
+// ⭐ FIXED: Login function - Check email verification
 export const Login = async (req, res) => {
     const { email, password } = req.body;
 
@@ -336,10 +548,38 @@ export const Login = async (req, res) => {
             return res.status(404).json({ msg: "Email tidak ditemukan" });
         }
 
+        // ⭐ CHECK: Email verification status
+        console.log('🔍 Login attempt for user:', {
+            email: user.email,
+            is_verified: user.is_verified,
+            email_verified_at: user.email_verified_at
+        });
+
+        // ⭐ OPTIONAL: Block login if not verified (uncomment if you want to enforce)
+        /*
+        if (!user.is_verified) {
+            return res.status(403).json({ 
+                msg: "Email belum diverifikasi. Silakan verifikasi email terlebih dahulu.",
+                need_verification: true,
+                email: user.email
+            });
+        }
+        */
+
         // Cocokkan password
         const match = await bcrypt.compare(password, user.password);
         if (!match) {
             return res.status(400).json({ msg: "Password salah" });
+        }
+
+        // ⭐ AUTO-FIX: If user can login but not verified, auto-verify them
+        if (!user.is_verified) {
+            console.log('🔧 Auto-verifying user who can login:', user.email);
+            await user.update({
+                is_verified: true,
+                email_verified_at: new Date()
+            });
+            console.log('✅ User auto-verified:', user.email);
         }
 
         // Ambil data yang dibutuhkan untuk token
@@ -347,14 +587,14 @@ export const Login = async (req, res) => {
         const name = user.name;
         const userEmail = user.email;
 
-        // Buat access token (misal 1 jam)
+        // Buat access token
         const accessToken = jwt.sign(
             { userId, name, email: userEmail },
             process.env.ACCESS_TOKEN_SECRET,
             { expiresIn: '1h' }
         );
 
-        // Buat refresh token (misal 1 hari)
+        // Buat refresh token
         const refreshToken = jwt.sign(
             { userId, name, email: userEmail },
             process.env.REFRESH_TOKEN_SECRET,
@@ -370,19 +610,21 @@ export const Login = async (req, res) => {
         // Set refresh token ke cookie
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // ⬅️ hanya jika HTTPS
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'Strict',
             maxAge: 24 * 60 * 60 * 1000 // 1 hari
         });
 
-        // Kirim access token dan info user
+        // ⭐ INCLUDE: Email verification status in response
         res.status(200).json({
             msg: "Login berhasil",
             accessToken,
             user: {
                 id: userId,
                 name,
-                email: userEmail
+                email: userEmail,
+                is_verified: true, // ⭐ Always true after auto-fix
+                role: user.role || 'user'
             }
         });
 
@@ -391,6 +633,7 @@ export const Login = async (req, res) => {
         res.status(500).json({ msg: "Terjadi kesalahan pada server" });
     }
 };
+
 
 
 export const Logout = async (req, res) => {

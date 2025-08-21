@@ -1,33 +1,179 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function ScanUpload() {
   const [selectedImage, setSelectedImage] = useState(null);
-  const [imageFile, setImageFile] = useState(null); // Untuk menyimpan file asli
+  const [imageFile, setImageFile] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isCamera, setIsCamera] = useState(false);
   const [stream, setStream] = useState(null);
   const [error, setError] = useState(null);
-  const [isSaving, setIsSaving] = useState(false); // State untuk loading save
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // ⭐ Permission system states
+  const [userStatus, setUserStatus] = useState(null);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  const [isRequestingAccess, setIsRequestingAccess] = useState(false);
+  
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const navigate = useNavigate(); // Hook untuk navigasi
+  const navigate = useNavigate();
 
-  // API Base URL
   const API_BASE_URL = 'http://localhost:5000';
+
+  // ⭐ Check user catalog access status
+  useEffect(() => {
+    checkUserCatalogStatus();
+  }, []);
+
+  const checkUserCatalogStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setUserStatus({ 
+          can_access_catalog: false, 
+          role: 'guest',
+          request_status: 'none',
+          is_email_verified: false 
+        });
+        setIsCheckingStatus(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/catalog/my-status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setUserStatus(result.data);
+        console.log('🔍 User catalog status:', result.data);
+      } else {
+        console.error('Failed to get user status:', response.statusText);
+        // Fallback to basic user status
+        setUserStatus({ 
+          can_access_catalog: false, 
+          role: 'user',
+          request_status: 'none',
+          is_email_verified: true 
+        });
+      }
+    } catch (error) {
+      console.error('Error checking user status:', error);
+      setUserStatus({ 
+        can_access_catalog: false, 
+        role: 'user',
+        request_status: 'none',
+        is_email_verified: true 
+      });
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  // ⭐ UPDATED: Request catalog access (now pending approval)
+  const requestCatalogAccess = async () => {
+    setIsRequestingAccess(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Silakan login terlebih dahulu');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/catalog/request-access`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          reason: "Ingin berkontribusi untuk database katalog ikan Indonesia"
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        // ⭐ UPDATED: Status becomes pending (not auto-approved)
+        setUserStatus(prevStatus => ({
+          ...prevStatus,
+          request_status: 'pending',
+          request_date: new Date().toISOString()
+        }));
+
+        // Show success message
+        alert('📨 ' + result.msg);
+        
+        showSuccessToast('Request Anda telah dikirim ke admin untuk direview.');
+
+      } else {
+        setError(result.msg || 'Gagal mengirim request akses katalog');
+      }
+    } catch (error) {
+      console.error('Error requesting catalog access:', error);
+      setError('Gagal mengirim request: ' + error.message);
+    } finally {
+      setIsRequestingAccess(false);
+    }
+  };
+
+  // ⭐ Show success toast notification
+  const showSuccessToast = (message) => {
+    const toast = document.createElement('div');
+    toast.innerHTML = `
+      <div style="
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+        padding: 16px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 9999;
+        max-width: 400px;
+        animation: slideIn 0.3s ease-out;
+      ">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">📨</span>
+          <span style="font-weight: 500;">${message}</span>
+        </div>
+      </div>
+    `;
+
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.remove();
+      style.remove();
+    }, 5000);
+  };
 
   // Handle file upload
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      // Validasi tipe file
       if (!file.type.startsWith('image/')) {
         alert('Silakan pilih file gambar yang valid');
         return;
       }
 
-      // Validasi ukuran file (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         alert('Ukuran file terlalu besar. Maksimal 10MB');
         return;
@@ -48,7 +194,7 @@ function ScanUpload() {
   const startCamera = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } // Gunakan kamera belakang jika ada
+        video: { facingMode: 'environment' }
       });
       setStream(mediaStream);
       setIsCamera(true);
@@ -89,7 +235,6 @@ function ScanUpload() {
       const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
       setSelectedImage(imageDataUrl);
       
-      // Convert to file for API
       const file = dataURLtoFile(imageDataUrl, 'camera-capture.jpg');
       setImageFile(file);
       
@@ -115,35 +260,23 @@ function ScanUpload() {
     setAnalysisResult(null);
     
     try {
-      // Prepare FormData for API
       const formData = new FormData();
       formData.append('image', file);
 
-      // Make API request dengan headers CORS
       const response = await fetch(`${API_BASE_URL}/predict-image`, {
         method: 'POST',
-        mode: 'cors', // Explicitly set CORS mode
-        headers: {
-          // Jangan set Content-Type untuk FormData, biarkan browser yang set
-        },
+        mode: 'cors',
         body: formData,
       });
 
-      // Log response untuk debugging
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response:', errorText);
         throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('API Response:', result);
       
       if (result.status === 'success') {
-        // Format result sesuai dengan struktur yang diharapkan
         const formattedResult = {
           name: result.info.nama_indonesia || result.predicted_class,
           predicted_class: result.predicted_class,
@@ -162,27 +295,13 @@ function ScanUpload() {
       }
     } catch (error) {
       console.error('Error analyzing image:', error);
-      
-      // Handle different types of errors
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        setError(`CORS Error: Server API tidak mengizinkan akses dari browser. 
-                  Pastikan server API mengaktifkan CORS untuk ${window.location.origin}. 
-                  Server status: ${API_BASE_URL} - Coba refresh halaman dan pastikan server berjalan.`);
-      } else if (error.message.includes('NetworkError')) {
-        setError('Network Error: Tidak dapat terhubung ke server API. Pastikan server berjalan di localhost:5000');
-      } else if (error.message.includes('413')) {
-        setError('File terlalu besar untuk diproses');
-      } else if (error.message.includes('415')) {
-        setError('Format file tidak didukung');
-      } else {
-        setError('Gagal menganalisis gambar: ' + error.message);
-      }
+      setError('Gagal menganalisis gambar: ' + error.message);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // Save to database - UNCHANGED
+  // Save to database
   const saveToDatabase = async () => {
     if (!analysisResult || !selectedImage) {
       alert('Tidak ada data untuk disimpan');
@@ -193,29 +312,25 @@ function ScanUpload() {
     setError(null);
 
     try {
-      // Prepare data untuk dikirim ke backend
       const formData = new FormData();
       
-      // Tambahkan file gambar asli
       if (imageFile) {
         formData.append('image', imageFile);
       }
       
-      // Tambahkan data hasil analisis
       formData.append('fish_name', analysisResult.name || analysisResult.predicted_class);
       formData.append('predicted_class', analysisResult.predicted_class);
-      formData.append('confidence', parseFloat(analysisResult.confidence.replace('%', ''))); // Remove % and convert to number
+      formData.append('confidence', parseFloat(analysisResult.confidence.replace('%', '')));
       formData.append('habitat', analysisResult.habitat);
       formData.append('konsumsi', analysisResult.konsumsi);
       formData.append('top_predictions', JSON.stringify(analysisResult.top_predictions));
       formData.append('timestamp', new Date().toISOString());
       formData.append('saved_to_catalog', 'false');
 
-      // Kirim ke backend
       const response = await fetch(`${API_BASE_URL}/api/save-scan`, {
         method: 'POST',
         mode: 'cors',
-        body: formData // Gunakan FormData untuk mengirim file dan data
+        body: formData
       });
 
       if (!response.ok) {
@@ -224,83 +339,43 @@ function ScanUpload() {
       }
 
       const result = await response.json();
-      console.log('Save response:', result);
 
       if (result.status === 'success' || result.success) {
         alert('Data berhasil disimpan ke database!');
-        
-        // Optional: Reset form setelah berhasil simpan
-        // resetScan();
       } else {
         throw new Error(result.message || 'Gagal menyimpan data');
       }
 
     } catch (error) {
       console.error('Error saving to database:', error);
-      
-      // Handle different types of errors
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        setError('Gagal terhubung ke server. Pastikan server API berjalan di localhost:5000');
-      } else {
-        setError('Gagal menyimpan data: ' + error.message);
-      }
-      
-      // Fallback ke localStorage jika API gagal
-      try {
-        const existingData = JSON.parse(localStorage.getItem('fishScans') || '[]');
-        const newData = {
-          id: Date.now(),
-          image: selectedImage,
-          fishData: analysisResult,
-          timestamp: new Date().toISOString(),
-          saved_to_catalog: false
-        };
-        existingData.push(newData);
-        localStorage.setItem('fishScans', JSON.stringify(existingData));
-        alert('Server tidak tersedia. Data disimpan secara lokal!');
-      } catch (localError) {
-        console.error('Error saving to localStorage:', localError);
-        alert('Gagal menyimpan data baik ke server maupun lokal');
-      }
-
+      setError('Gagal menyimpan data: ' + error.message);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // UPDATED: Navigate to AddKatalog page with data
+  // Navigate to AddKatalog page with data
   const goToAddKatalog = () => {
     if (!analysisResult || !selectedImage) {
       alert('Tidak ada data hasil analisis');
       return;
     }
 
-    // Siapkan data untuk dibawa ke halaman AddKatalog
     const catalogData = {
-      // Data AI hasil analisis
       predictedFishName: analysisResult.name || analysisResult.predicted_class,
-      aiAccuracy: parseFloat(analysisResult.confidence.replace('%', '')) / 100, // Convert ke decimal
+      aiAccuracy: parseFloat(analysisResult.confidence.replace('%', '')) / 100,
       fishImage: selectedImage,
-      
-      // Data form (pre-fill dari hasil AI)
       namaIkan: analysisResult.name || analysisResult.predicted_class,
       kategori: analysisResult.konsumsi === 'Dapat dikonsumsi' ? 'Ikan Konsumsi' : 'Ikan Hias',
       habitat: analysisResult.habitat,
-      
-      // Data tambahan
       tingkatKeamanan: 0.98,
       amanDikonsumsi: analysisResult.konsumsi === 'Dapat dikonsumsi',
       jauhDariPabrik: true,
-      
-      // Metadata
       scanTimestamp: new Date().toISOString(),
-      originalImageFile: imageFile // Untuk upload nanti jika diperlukan
+      originalImageFile: imageFile
     };
 
-    // Simpan data ke localStorage untuk diambil di halaman AddKatalog
     localStorage.setItem('pendingCatalogData', JSON.stringify(catalogData));
-    
-    // Navigasi ke halaman AddKatalog
     navigate('/katalog/tambah');
   };
 
@@ -315,10 +390,172 @@ function ScanUpload() {
     stopCamera();
   };
 
+  // ⭐ UPDATED: Render permission status info
+  const renderPermissionInfo = () => {
+    if (isCheckingStatus) {
+      return (
+        <div className="permission-info checking">
+          <i className="fas fa-spinner fa-spin"></i> 
+          Mengecek status akses katalog...
+        </div>
+      );
+    }
+
+    if (!userStatus) return null;
+
+    if (userStatus.role === 'guest') {
+      return (
+        <div className="permission-info guest">
+          <i className="fas fa-info-circle"></i>
+          <span>Silakan login untuk mengakses fitur katalog</span>
+        </div>
+      );
+    }
+
+    if (!userStatus.is_email_verified) {
+      return (
+        <div className="permission-info warning">
+          <i className="fas fa-exclamation-triangle"></i>
+          <span>Verifikasi email terlebih dahulu untuk request akses katalog</span>
+        </div>
+      );
+    }
+
+    if (userStatus.can_access_catalog) {
+      return (
+        <div className="permission-info success">
+          <i className="fas fa-check-circle"></i>
+          <span>✨ Anda dapat menambahkan hasil scan ke katalog publik</span>
+        </div>
+      );
+    }
+
+    // ⭐ UPDATED: Handle pending status
+    if (userStatus.request_status === 'pending') {
+      const requestDate = userStatus.request_date ? new Date(userStatus.request_date) : null;
+      const daysWaiting = requestDate ? Math.floor((new Date() - requestDate) / (1000 * 60 * 60 * 24)) : 0;
+      
+      return (
+        <div className="permission-info pending">
+          <i className="fas fa-clock"></i>
+          <span>
+            📨 Request akses katalog sedang direview admin 
+            {daysWaiting > 0 && ` (${daysWaiting} hari yang lalu)`}
+          </span>
+        </div>
+      );
+    }
+
+    if (userStatus.request_status === 'rejected') {
+      return (
+        <div className="permission-info rejected">
+          <i className="fas fa-times-circle"></i>
+          <span>❌ Request akses katalog ditolak. Alasan: {userStatus.rejection_reason}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="permission-info info">
+        <i className="fas fa-info-circle"></i>
+        <span>Request akses katalog untuk dapat berkontribusi ke database publik</span>
+      </div>
+    );
+  };
+
+  // ⭐ UPDATED: Render catalog button
+  const renderCatalogButton = () => {
+    if (isCheckingStatus || !userStatus) return null;
+
+    // Guest user - show login prompt
+    if (userStatus.role === 'guest') {
+      return (
+        <button 
+          onClick={() => navigate('/login')}
+          className="login-button"
+        >
+          <i className="fas fa-sign-in-alt"></i> 
+          Login untuk Akses Katalog
+        </button>
+      );
+    }
+
+    // User can access catalog (approved contributor)
+    if (userStatus.can_access_catalog) {
+      return (
+        <button 
+          onClick={goToAddKatalog} 
+          className="catalog-button"
+          disabled={isSaving}
+        >
+          <i className="fas fa-plus"></i> 
+          Tambah ke Katalog +
+        </button>
+      );
+    }
+
+    // User email not verified
+    if (!userStatus.is_email_verified) {
+      return (
+        <button 
+          className="catalog-button disabled"
+          disabled
+          title="Verifikasi email terlebih dahulu"
+        >
+          <i className="fas fa-envelope"></i> 
+          Verifikasi Email Dulu
+        </button>
+      );
+    }
+
+    // ⭐ UPDATED: User request pending
+    if (userStatus.request_status === 'pending') {
+      return (
+        <button 
+          className="catalog-button pending"
+          disabled
+          title="Request sedang direview admin"
+        >
+          <i className="fas fa-clock"></i> 
+          Sedang Direview Admin...
+        </button>
+      );
+    }
+
+    // User request rejected
+    if (userStatus.request_status === 'rejected') {
+      return (
+        <button 
+          className="catalog-button rejected"
+          disabled
+          title={`Ditolak: ${userStatus.rejection_reason}`}
+        >
+          <i className="fas fa-ban"></i> 
+          Request Ditolak
+        </button>
+      );
+    }
+
+    // ⭐ User can request access
+    return (
+      <button 
+        onClick={requestCatalogAccess}
+        className="request-access-button"
+        disabled={isRequestingAccess}
+      >
+        <i className="fas fa-paper-plane"></i> 
+        {isRequestingAccess ? 'Mengirim Request...' : 'Request Akses Katalog'}
+      </button>
+    );
+  };
+
   return (
     <div className="scan-container">
       <h2 className="section-title">Scan Ikanmu Disini</h2>
       <p className="section-subtitle">100% Otomatis dan Gratis</p>
+      
+      {/* Permission Status Info */}
+      {renderPermissionInfo()}
       
       {/* Error Display */}
       {error && (
@@ -402,7 +639,6 @@ function ScanUpload() {
             </div>
           )}
 
-          {/* Loading indicator untuk save */}
           {isSaving && (
             <div className="analyzing-modal">
               <div className="analyzing-content">
@@ -422,14 +658,12 @@ function ScanUpload() {
                 <div className="result-info">
                   <h3 className="fish-name">{analysisResult.name}</h3>
                   
-                  {/* Informasi Utama */}
                   <div className="main-info">
                     <p><strong>Habitat:</strong> {analysisResult.habitat}</p>
                     <p><strong>Konsumsi:</strong> {analysisResult.konsumsi}</p>
                     <p><strong>Confidence:</strong> {analysisResult.confidence}</p>
                   </div>
 
-                  {/* Top 3 Predictions */}
                   <div className="predictions-section">
                     <h4>Top 3 Prediksi:</h4>
                     <ul style={{ listStyle: 'none', padding: 0 }}>
@@ -461,14 +695,9 @@ function ScanUpload() {
                   <i className="fas fa-save"></i> 
                   {isSaving ? 'Menyimpan...' : 'Simpan'}
                 </button>
-                <button 
-                  onClick={goToAddKatalog} 
-                  className="catalog-button"
-                  disabled={isSaving}
-                >
-                  <i className="fas fa-plus"></i> 
-                  Tambah ke Katalog +
-                </button>
+                
+                {/* ⭐ UPDATED: Conditional catalog button */}
+                {renderCatalogButton()}
               </div>
             </div>
           )}
