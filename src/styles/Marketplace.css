@@ -339,3 +339,96 @@
     font-size: 20px;
   }
 }
+
+/* src/styles/Marketplace.css (tambahkan di akhir file) 8/21/2025 */
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .marketplace-container {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    height: auto;
+    padding: 10px;
+  }
+  
+  .nav-item {
+    flex: 1;
+    flex-direction: column;
+    padding: 10px;
+    font-size: 12px;
+  }
+  
+  .main-content {
+    margin-left: 0;
+    padding: 15px;
+  }
+  
+  .header {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .header-left {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .search-container {
+    width: 100%;
+  }
+  
+  .stats-overview {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  
+  .filter-tabs {
+    overflow-x: auto;
+    padding-bottom: 10px;
+  }
+  
+  .tab-button {
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  
+  .products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px;
+  }
+  
+  .upload-id-page {
+    padding: 15px;
+  }
+  
+  .id-type-options {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-overview {
+    grid-template-columns: 1fr;
+  }
+  
+  .products-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .product-card {
+    margin-bottom: 15px;
+  }
+  
+  .upload-id-title {
+    font-size: 20px;
+  }
+  
+  .upload-area {
+    padding: 20px 10px;
+  }
+}

@@ -22,15 +22,38 @@ function PersonalInfo() {
   );
   const API_BASE_URL = 'http://localhost:5000';
 
-  // Calculate age from birthday
+  // Fungsi untuk memperbarui token akses menggunakan refresh token
+  const refreshAccessToken = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/token`, {
+        method: 'POST',
+        credentials: 'include', // Sertakan cookie (refreshToken ada di cookie HTTP-only)
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal memperbarui token');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('token', data.accessToken); // Simpan token akses baru
+      return data.accessToken;
+    } catch (err) {
+      console.error('Kesalahan saat memperbarui token:', err);
+      setError('Sesi telah berakhir. Silakan login kembali.');
+      localStorage.removeItem('token');
+      throw err;
+    }
+  };
+
+  // Hitung usia dari tanggal lahir
   const calculateAge = (birthday) => {
     if (!birthday) {
-      setDebugInfo(prev => prev + ' [No birthday provided, using default]');
+      setDebugInfo(prev => prev + ' [Tanggal lahir tidak tersedia, menggunakan default]');
       return '18+';
     }
     const birthDate = new Date(birthday);
     if (isNaN(birthDate)) {
-      setDebugInfo(prev => prev + ' [Invalid birthday format]');
+      setDebugInfo(prev => prev + ' [Format tanggal lahir tidak valid]');
       return '18+';
     }
     const today = new Date();
@@ -42,7 +65,7 @@ function PersonalInfo() {
     return age.toString();
   };
 
-  // Validate input fields
+  // Validasi input
   const validateField = (field, value) => {
     switch (field) {
       case 'name':
@@ -67,20 +90,20 @@ function PersonalInfo() {
     }
   };
 
-  // Fetch user data
+  // Ambil data pengguna dengan refresh token otomatis jika token kedaluwarsa
   useEffect(() => {
-    const fetchUserData = async () => {
+    const fetchUserData = async (retry = true) => {
       try {
-        const token = localStorage.getItem('token');
+        let token = localStorage.getItem('token');
         if (!token) {
           setError('Silakan login kembali untuk melihat data profil');
-          setDebugInfo('No token found in localStorage');
+          setDebugInfo('Token tidak ditemukan di localStorage');
           setLoading(false);
           return;
         }
 
         setLoading(true);
-        setDebugInfo('Fetching user data...');
+        setDebugInfo('Mengambil data pengguna...');
         const response = await fetch(`${API_BASE_URL}/users`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -89,142 +112,199 @@ function PersonalInfo() {
         });
 
         const data = await response.json();
-        console.log('API Response:', data);
+        console.log('Respon API:', data);
 
-        if (response.ok) {
-          const birthday = localStorage.getItem('profileBirthday') || '2004-12-20';
-          
-          // ✅ PERBAIKAN: Ambil phone dan gender dari database response
-          // Jika tidak ada di database, fallback ke localStorage
-          const phone = data.phone || localStorage.getItem('profilePhone') || '';
-          const gender = data.gender || localStorage.getItem('profileGender') || '';
-
-          // Hanya set debug info jika ada masalah atau data missing
-          if (!data.phone && !data.gender) {
-            setDebugInfo('Some profile data missing from database');
-          } else if (!data.phone) {
-            setDebugInfo('Phone data missing from database');
-          } else if (!data.gender) {
-            setDebugInfo('Gender data missing from database');
+        if (!response.ok) {
+          if (data.msg === 'Token expired' && retry) {
+            // Perbarui token dan coba lagi
+            token = await refreshAccessToken();
+            return fetchUserData(false); // Coba sekali lagi setelah refresh
           } else {
-            // Data lengkap dari database, tidak perlu debug message
-            setDebugInfo('');
+            throw new Error(data.msg || 'Gagal memuat data pengguna');
           }
+        }
 
-          const newPersonalData = {
-            name: data.name || 'Unknown',
-            phone: phone || '(tidak tersedia)',
-            birthday: birthday,
-            gender: gender || '(tidak tersedia)',
-            age: calculateAge(birthday)
-          };
+        const birthday = localStorage.getItem('profileBirthday') || '2004-12-20';
+        
+        // Ambil phone dan gender dari respon database
+        const phone = data.phone || localStorage.getItem('profilePhone') || '';
+        const gender = data.gender || localStorage.getItem('profileGender') || '';
 
-          setPersonalData(newPersonalData);
+        // Hanya set debug info jika ada data yang hilang
+        if (!data.phone && !data.gender) {
+          setDebugInfo('Beberapa data profil hilang dari database');
+        } else if (!data.phone) {
+          setDebugInfo('Data nomor telepon hilang dari database');
+        } else if (!data.gender) {
+          setDebugInfo('Data jenis kelamin hilang dari database');
+        } else {
+          setDebugInfo('');
+        }
 
-          // Update temp values for form
-          setTempPhone(phone || '');
-          setTempGender(gender || '');
+        const newPersonalData = {
+          name: data.name || 'Unknown',
+          phone: phone || '(tidak tersedia)',
+          birthday: birthday,
+          gender: gender || '(tidak tersedia)',
+          age: calculateAge(birthday)
+        };
 
-          // ✅ PERBAIKAN: Show form hanya jika benar-benar tidak ada data phone/gender
-          // baik dari database maupun localStorage
-          if ((!data.phone && !localStorage.getItem('profilePhone')) ||
-              (!data.gender && !localStorage.getItem('profileGender'))) {
-            if (!hasCompletedOnboarding) {
-              setShowMissingDataForm(true);
-              setInfoMessage('Nomor HP atau Jenis Kelamin tidak tersedia. Silakan lengkapi data Anda.');
-            } else {
-              setInfoMessage('');  // Tidak perlu message jika sudah complete
-            }
+        setPersonalData(newPersonalData);
+
+        // Perbarui nilai sementara untuk form
+        setTempPhone(phone || '');
+        setTempGender(gender || '');
+
+        // Tampilkan form hanya jika data phone/gender benar-benar tidak ada
+        if ((!data.phone && !localStorage.getItem('profilePhone')) ||
+            (!data.gender && !localStorage.getItem('profileGender'))) {
+          if (!hasCompletedOnboarding) {
+            setShowMissingDataForm(true);
+            setInfoMessage('Nomor HP atau Jenis Kelamin tidak tersedia. Silakan lengkapi data Anda.');
           } else {
-            setInfoMessage('Data profil berhasil dimuat dari database.');
-            setShowMissingDataForm(false);
+            setInfoMessage('');
           }
         } else {
-          setError(data.msg || 'Gagal memuat data pengguna');
-          setInfoMessage('Periksa koneksi Anda atau login kembali');
-          setDebugInfo(`API Error: ${data.msg || 'Unknown error'}`);
+          setInfoMessage('Data profil berhasil dimuat dari database.');
+          setShowMissingDataForm(false);
         }
       } catch (err) {
-        setError('Gagal terhubung ke server');
+        setError(err.message || 'Gagal terhubung ke server');
         setInfoMessage('Pastikan server berjalan di localhost:5000');
-        setDebugInfo(`Fetch Error: ${err.message}`);
-        console.error('Fetch user error:', err);
+        setDebugInfo(`Kesalahan API: ${err.message}`);
+        console.error('Kesalahan saat mengambil data pengguna:', err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchUserData();
-  }, [hasCompletedOnboarding]);
+  }, []);
 
-  // Handle field edits
-  const handleEdit = (field, newValue) => {
+  // Tangani pengeditan field dan perbarui langsung ke database
+  const handleEdit = async (field, newValue) => {
     const validationError = validateField(field, newValue);
     if (validationError) {
       setError(validationError);
-      setDebugInfo(`Validation failed for ${field}: ${validationError}`);
       return;
     }
 
-    setError('');
-    
-    // ✅ PERBAIKAN: Update info message untuk menjelaskan bahwa data disimpan lokal
-    if (field === 'phone' || field === 'gender') {
-      setInfoMessage('Perubahan disimpan di perangkat Anda. Data database tidak berubah.');
-    } else {
-      setInfoMessage('Perubahan disimpan sementara di perangkat Anda.');
+    let token = localStorage.getItem('token');
+    if (!token) {
+      setError('Silakan login kembali untuk memperbarui data');
+      return;
     }
-    
-    setPersonalData(prev => {
-      const updatedData = { ...prev, [field]: newValue };
-      if (field === 'birthday') {
-        updatedData.age = calculateAge(newValue);
-        localStorage.setItem('profileBirthday', newValue);
-      } else if (field === 'phone') {
-        localStorage.setItem('profilePhone', newValue);
-      } else if (field === 'gender') {
-        localStorage.setItem('profileGender', newValue);
+
+    try {
+      setLoading(true);
+      const updateData = { [field]: newValue };
+      const response = await fetch(`${API_BASE_URL}/users/update`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.msg === 'Token expired') {
+          // Coba perbarui token dan ulangi permintaan
+          token = await refreshAccessToken();
+          const retryResponse = await fetch(`${API_BASE_URL}/users/update`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updateData)
+          });
+
+          if (!retryResponse.ok) {
+            throw new Error((await retryResponse.json()).msg || 'Gagal memperbarui data');
+          }
+        } else {
+          throw new Error(data.msg || 'Gagal memperbarui data');
+        }
       }
-      return updatedData;
-    });
+
+      setError('');
+      setInfoMessage('Data berhasil diperbarui di database!');
+      setPersonalData(prev => ({
+        ...prev,
+        [field]: newValue,
+        age: field === 'birthday' ? calculateAge(newValue) : prev.age
+      }));
+      if (field === 'birthday') {
+        localStorage.setItem('profileBirthday', newValue);
+      }
+    } catch (err) {
+      setError(err.message || 'Gagal terhubung ke server');
+      setInfoMessage('Pastikan server berjalan di localhost:5000');
+      console.error('Kesalahan saat memperbarui data:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Handle missing data form submission
-  const handleMissingDataSubmit = (e) => {
+  // Tangani pengiriman form data yang hilang
+  const handleMissingDataSubmit = async (e) => {
     e.preventDefault();
     const phoneError = validateField('phone', tempPhone);
     const genderError = validateField('gender', tempGender);
+
     if (phoneError || genderError) {
       setError(phoneError || genderError);
       return;
     }
 
-    setError('');
-    setPersonalData(prev => ({
-      ...prev,
-      phone: tempPhone,
-      gender: tempGender
-    }));
-    localStorage.setItem('profilePhone', tempPhone);
-    localStorage.setItem('profileGender', tempGender);
-    localStorage.setItem('profileOnboardingCompleted', 'true');
-    setHasCompletedOnboarding(true);
-    setInfoMessage('Data nomor HP dan jenis kelamin berhasil disimpan.');
-    setShowMissingDataForm(false);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Silakan login kembali untuk memperbarui data');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/users/update`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ phone: tempPhone, gender: tempGender })
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal memperbarui data profil');
+      }
+
+      setPersonalData(prev => ({
+        ...prev,
+        phone: tempPhone,
+        gender: tempGender
+      }));
+      localStorage.setItem('profilePhone', tempPhone);
+      localStorage.setItem('profileGender', tempGender);
+      localStorage.setItem('profileOnboardingCompleted', 'true');
+      setHasCompletedOnboarding(true);
+      setShowMissingDataForm(false);
+      setInfoMessage('Data profil berhasil diperbarui!');
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Gagal terhubung ke server');
+      setInfoMessage('Pastikan server berjalan di localhost:5000');
+    }
   };
 
-  // Handle form cancellation
+  // Tangani pembatalan form data yang hilang
   const handleMissingDataCancel = () => {
-    setTempPhone(localStorage.getItem('profilePhone') || '');
-    setTempGender(localStorage.getItem('profileGender') || '');
     setShowMissingDataForm(false);
-    setError('');
     localStorage.setItem('profileOnboardingCompleted', 'true');
     setHasCompletedOnboarding(true);
     setInfoMessage('');
   };
 
-  // Map data to profile items
   const personalItems = [
     {
       id: 'name',
@@ -232,8 +312,7 @@ function PersonalInfo() {
       label: 'Nama:',
       value: personalData.name,
       editable: true,
-      onEdit: (value) => handleEdit('name', value),
-      tooltip: 'Nama lengkap Anda'
+      onEdit: (value) => handleEdit('name', value)
     },
     {
       id: 'phone',
@@ -241,48 +320,38 @@ function PersonalInfo() {
       label: 'Nomor HP:',
       value: personalData.phone,
       editable: true,
-      onEdit: (value) => handleEdit('phone', value),
-      tooltip: personalData.phone === '(tidak tersedia)' ? 
-        'Nomor HP belum tersedia' : 
-        'Nomor HP Anda'
+      onEdit: (value) => handleEdit('phone', value)
     },
     {
       id: 'birthday',
-      icon: <Cake size={20} />,
+      icon: <Calendar size={20} />,
       label: 'Tanggal Lahir:',
       value: personalData.birthday,
       editable: true,
       onEdit: (value) => handleEdit('birthday', value),
-      tooltip: 'Tanggal lahir digunakan untuk menghitung umur'
+      tooltip: 'Tanggal lahir disimpan di browser Anda'
     },
     {
       id: 'gender',
       icon: <User size={20} />,
       label: 'Jenis Kelamin:',
-      value: personalData.gender === 'male' ? 'Laki-laki' : 
-             personalData.gender === 'female' ? 'Perempuan' : 
-             personalData.gender,
+      value: personalData.gender,
       editable: true,
-      onEdit: (value) => handleEdit('gender', value),
-      tooltip: personalData.gender === '(tidak tersedia)' ? 
-        'Jenis kelamin belum tersedia' : 
-        'Jenis kelamin Anda'
+      onEdit: (value) => handleEdit('gender', value)
     },
     {
       id: 'age',
-      icon: <User size={20} />,
-      label: 'Umur:',
+      icon: <Cake size={20} />,
+      label: 'Usia:',
       value: personalData.age,
       editable: false,
-      tooltip: 'Umur dihitung berdasarkan tanggal lahir'
+      tooltip: 'Usia dihitung otomatis dari tanggal lahir'
     }
   ];
 
   return (
-    <div className="profile-section" style={{ padding: '20px' }}>
-      <h2 className="section-title" style={{ fontSize: '24px', fontWeight: '600', marginBottom: '20px' }}>
-        Informasi Pribadi
-      </h2>
+    <div className="profile-section">
+      <h2 className="section-title">Informasi Pribadi</h2>
       {loading && (
         <div className="loading" style={{ padding: '20px', textAlign: 'center' }}>
           <span className="loading-spinner" style={{
@@ -324,26 +393,28 @@ function PersonalInfo() {
           alignItems: 'center',
           gap: '8px'
         }}>
-          <Info size={16} />
+          <span style={{ fontSize: '16px' }}>ℹ️</span>
           {infoMessage}
         </div>
       )}
-      {debugInfo && process.env.NODE_ENV === 'development' && (
-        <div className="debug-message" style={{
-          backgroundColor: '#f59e0b',
-          color: 'white',
+      {debugInfo && (
+        <div className="debug-info" style={{
+          backgroundColor: '#fef3c7',
+          color: '#92400e',
           padding: '16px',
           borderRadius: '8px',
           marginBottom: '20px',
-          fontSize: '12px'
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
-          <span style={{ fontSize: '14px' }}>🛠️ Debug:</span> {debugInfo}
+          <span style={{ fontSize: '16px' }}>🛠️</span>
+          Debug: {debugInfo}
         </div>
       )}
       {showMissingDataForm && (
         <div className="missing-data-form" style={{
-          backgroundColor: '#fff',
-          border: '1px solid #e5e7eb',
+          backgroundColor: 'white',
           padding: '20px',
           borderRadius: '8px',
           marginBottom: '20px',
@@ -455,35 +526,6 @@ function PersonalInfo() {
           ))}
         </div>
       )}
-      <div className="action-info" style={{
-        marginTop: '20px',
-        padding: '15px',
-        backgroundColor: '#f3f4f6',
-        borderRadius: '8px',
-        textAlign: 'center'
-      }}>
-        <p style={{ color: '#374151', fontSize: '14px', marginBottom: '10px' }}>
-          💡 <strong>Catatan:</strong> Data Anda sudah tersimpan aman di database. 
-          Edit di halaman ini bersifat sementara dan tidak mengubah data asli di server.
-        </p>
-        <p style={{ color: '#374151', fontSize: '12px', marginBottom: '10px' }}>
-          Untuk mengubah data permanen, silakan registrasi ulang dengan informasi baru.
-        </p>
-        <button
-          onClick={() => window.location.href = '/register'}
-          style={{
-            backgroundColor: '#007AFF',
-            color: 'white',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
-        >
-          Pergi ke Halaman Registrasi
-        </button>
-      </div>
       <style jsx>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }

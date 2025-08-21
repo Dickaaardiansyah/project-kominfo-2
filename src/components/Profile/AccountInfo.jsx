@@ -13,7 +13,30 @@ function AccountInfo() {
   const [infoMessage, setInfoMessage] = useState('');
   const API_BASE_URL = 'http://localhost:5000';
 
-  // Validate input fields
+  // Fungsi untuk memperbarui token akses menggunakan refresh token
+  const refreshAccessToken = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/token`, {
+        method: 'POST',
+        credentials: 'include', // Sertakan cookie (refreshToken ada di cookie HTTP-only)
+      });
+
+      if (!response.ok) {
+        throw new Error('Gagal memperbarui token');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('token', data.accessToken); // Simpan token akses baru
+      return data.accessToken;
+    } catch (err) {
+      console.error('Kesalahan saat memperbarui token:', err);
+      setError('Sesi telah berakhir. Silakan login kembali.');
+      localStorage.removeItem('token');
+      throw err;
+    }
+  };
+
+  // Validasi input
   const validateField = (field, value) => {
     switch (field) {
       case 'username':
@@ -30,11 +53,11 @@ function AccountInfo() {
     }
   };
 
-  // Fetch user data
+  // Ambil data pengguna dengan refresh token otomatis jika token kedaluwarsa
   useEffect(() => {
-    const fetchUserData = async () => {
+    const fetchUserData = async (retry = true) => {
       try {
-        const token = localStorage.getItem('token');
+        let token = localStorage.getItem('token');
         if (!token) {
           setError('Silakan login kembali untuk melihat data akun');
           setLoading(false);
@@ -50,21 +73,26 @@ function AccountInfo() {
         });
 
         const data = await response.json();
-        if (response.ok) {
-          setAccountData({
-            username: data.name || 'Unknown',
-            password: '***********',
-            email: data.email || ''
-          });
-          setInfoMessage('');
-        } else {
-          setError(data.msg || 'Gagal memuat data akun');
-          setInfoMessage('Periksa koneksi Anda atau login kembali');
+        if (!response.ok) {
+          if (data.msg === 'Token expired' && retry) {
+            // Perbarui token dan coba lagi
+            token = await refreshAccessToken();
+            return fetchUserData(false); // Coba sekali lagi setelah refresh
+          } else {
+            throw new Error(data.msg || 'Gagal memuat data akun');
+          }
         }
+
+        setAccountData({
+          username: data.name || 'Unknown',
+          password: '***********',
+          email: data.email || ''
+        });
+        setInfoMessage('');
       } catch (err) {
-        setError('Gagal terhubung ke server');
+        setError(err.message || 'Gagal terhubung ke server');
         setInfoMessage('Pastikan server berjalan di localhost:5000');
-        console.error('Fetch user error:', err);
+        console.error('Kesalahan saat mengambil data pengguna:', err);
       } finally {
         setLoading(false);
       }
@@ -73,7 +101,7 @@ function AccountInfo() {
     fetchUserData();
   }, []);
 
-  // Handle field edits
+  // Tangani pengeditan field
   const handleEdit = (field, newValue) => {
     const validationError = validateField(field, newValue);
     if (validationError) {
