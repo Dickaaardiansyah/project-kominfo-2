@@ -3,7 +3,7 @@ import { AdminAuthProvider } from "../components/admin/auth/AdminAuthContext";
 import ProtectedAdminRoute from "../components/admin/auth/ProtectedAdminRoute";
 
 import Layout from "../components/layout/Layout";
-import NotFound from "../components/NotFound"; // Import komponen NotFound
+import NotFound from "../components/NotFound";
 
 // Pages
 import Home from "../pages/Home";
@@ -37,15 +37,21 @@ export function AppRoutes() {
             <Route path="/scan" element={<Scan />} />
           </Route>
 
-          {/* Halaman tanpa layout (termasuk AddKatalog) */}
+          {/* Halaman tanpa layout */}
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/profil" element={<Profile />} />
           <Route path="/history" element={<History/>} />
           <Route path="/marketplace" element={<Marketplace/>} />
           <Route path="/katalog/tambah" element={<AddKatalogPage />} />
-
           
+          {/* ⭐ NEW: Route untuk direct catalog registration */}
+          <Route 
+            path="/katalog/daftar" 
+            element={
+              <Marketplace catalogRegistrationMode={true} />
+            } 
+          />
           
           {/* Admin Routes - Protected */}
           <Route path="/admin/login" element={<AdminLogin />} />
@@ -63,7 +69,7 @@ export function AppRoutes() {
             path="/admin/seller-requests" 
             element={
               <ProtectedAdminRoute requiredRole="seller_verifier">
-                <Dashboard /> {/* Atau component khusus seller requests */}
+                <Dashboard />
               </ProtectedAdminRoute>
             } 
           />
@@ -77,7 +83,7 @@ export function AppRoutes() {
             } 
           />
 
-          {/* 404 page - Menggunakan komponen NotFound yang terpisah */}
+          {/* 404 page */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AdminAuthProvider>

@@ -77,53 +77,10 @@ function ScanUpload() {
   };
 
   // ⭐ UPDATED: Request catalog access (now pending approval)
-  const requestCatalogAccess = async () => {
-    setIsRequestingAccess(true);
-    setError(null);
-
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Silakan login terlebih dahulu');
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/catalog/request-access`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          reason: "Ingin berkontribusi untuk database katalog ikan Indonesia"
-        })
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        // ⭐ UPDATED: Status becomes pending (not auto-approved)
-        setUserStatus(prevStatus => ({
-          ...prevStatus,
-          request_status: 'pending',
-          request_date: new Date().toISOString()
-        }));
-
-        // Show success message
-        alert('📨 ' + result.msg);
-        
-        showSuccessToast('Request Anda telah dikirim ke admin untuk direview.');
-
-      } else {
-        setError(result.msg || 'Gagal mengirim request akses katalog');
-      }
-    } catch (error) {
-      console.error('Error requesting catalog access:', error);
-      setError('Gagal mengirim request: ' + error.message);
-    } finally {
-      setIsRequestingAccess(false);
-    }
-  };
+const requestCatalogAccess = () => {
+  // Direct to catalog registration page
+  navigate('/katalog/daftar');
+};
 
   // ⭐ Show success toast notification
   const showSuccessToast = (message) => {

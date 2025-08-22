@@ -11,6 +11,7 @@ function Sidebar() {
   function getActiveItemFromPath(pathname) {
     if (pathname.includes('profile') || pathname.includes('profil')) return 'profile';
     if (pathname.includes('history')) return 'history';
+     if (pathname.includes('katalog/daftar')) return 'marketplace'; // ⭐ TAMBAH ini
     if (pathname.includes('marketplace')) return 'marketplace';
     return 'marketplace';
   }
@@ -32,8 +33,9 @@ function Sidebar() {
       id: 'marketplace',
       icon: <ShoppingBag size={20} />,
       label: 'Marketplace',
-      path: '/marketplace'
-    }
+      path: '/katalog/daftar'
+    },
+    
   ];
 
   const handleItemClick = (id, path) => {

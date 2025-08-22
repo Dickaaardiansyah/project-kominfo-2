@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 // routes/index.js - Updated with Catalog Permission System
-=======
->>>>>>> 698d68ed4298986bb78fe1ac18a58064d3c7e287
 import express from 'express';
 import {
   getUsers,
@@ -63,8 +60,6 @@ router.delete('/logout', Logout);
 // OTP Routes
 router.post('/verify-otp', verifyOTP);
 router.post('/resend-otp', resendOTP);
-<<<<<<< HEAD
-=======
 
 // Endpoint untuk memperbarui data profil
 router.put('/users/update', verifyToken, async (req, res) => {
@@ -138,7 +133,6 @@ router.put('/users/update', verifyToken, async (req, res) => {
     res.status(500).json({ msg: 'Kesalahan server' });
   }
 });
->>>>>>> 698d68ed4298986bb78fe1ac18a58064d3c7e287
 
 // ==================== ML PREDICTION ROUTES ====================
 router.post('/predict', predictTabular);
@@ -150,7 +144,6 @@ router.post('/api/save-to-catalog', upload.single('image'), saveToCatalog); // K
 router.get('/api/get-scans', getScans);
 router.get('/api/get-catalog', getCatalog); // Keep existing
 
-<<<<<<< HEAD
 // ==================== ⭐ NEW CATALOG PERMISSION SYSTEM ROUTES ====================
 // USER Catalog Routes (need login)
 router.post('/api/catalog/request-access', verifyToken, requestCatalogAccess);
@@ -168,19 +161,13 @@ router.get('/api/catalog/admin/statistics', verifyAdminToken, getCatalogStatisti
 
 // ==================== ADMIN AUTH ROUTES ====================
 // Public admin routes (tidak perlu token)
-=======
 // ==================== ADMIN AUTH ROUTES ====================
->>>>>>> 698d68ed4298986bb78fe1ac18a58064d3c7e287
 router.post('/admin/create', createAdmin);
 router.post('/admin/login', loginAdmin);
 router.get('/admin/token', refreshAdminToken);
 router.delete('/admin/logout', logoutAdmin);
 
-<<<<<<< HEAD
-// Protected admin routes (perlu token)
-=======
 // Protected admin routes
->>>>>>> 698d68ed4298986bb78fe1ac18a58064d3c7e287
 router.get('/admin/profile', verifyAdminToken, getAdmin);
 router.get('/admin/all', verifyAdminToken, requireSuperAdmin, getAllAdmins);
 router.put('/admin/:adminId/status', verifyAdminToken, requireSuperAdmin, updateAdminStatus);
