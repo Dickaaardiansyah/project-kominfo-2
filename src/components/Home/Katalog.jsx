@@ -53,8 +53,16 @@ function Katalog() {
     },
   ];
 
-  // Fungsi untuk menentukan tipe ikan dari consumption_safety
-  const determineType = (consumptionSafety) => {
+  // Fungsi untuk menentukan tipe ikan dari kategori atau consumption_safety
+  const determineType = (kategori, consumptionSafety) => {
+    // Prioritas dari kategori database dulu
+    if (kategori) {
+      const cat = kategori.toLowerCase();
+      if (cat.includes('konsumsi') || cat.includes('pangan')) return 'konsumsi';
+      if (cat.includes('hias') || cat.includes('ornamental')) return 'hias';
+    }
+    
+    // Fallback ke consumption safety
     if (!consumptionSafety) return 'konsumsi';
     
     const safety = consumptionSafety.toLowerCase();
@@ -100,70 +108,113 @@ function Katalog() {
     }
   };
 
-  // Fungsi untuk mengambil data dari API
+  // ⭐ UPDATED: Fungsi untuk mengambil data dari PUBLIC catalog API
   const fetchFishData = async () => {
     try {
       setLoading(true);
       
-      console.log('Fetching data from API...');
+      console.log('Fetching PUBLIC catalog data from API...');
       
-      // Ambil data dari API
-      const response = await axios.get(`${API_BASE_URL}/api/get-scans`);
+      // ⭐ CHANGED: Gunakan endpoint catalog entries yang public (tanpa auth)
+      const response = await axios.get(`${API_BASE_URL}/api/catalog/entries?limit=50`);
       
-      console.log('API Response:', response.data);
+      console.log('Public Catalog API Response:', response.data);
       
-      if (response.data.status === 'success' && response.data.data.length > 0) {
-        // Transform data dari API ke format yang sama dengan initialFishData
-        const apiData = response.data.data.map(item => {
-          console.log('Raw API item:', {
+      if (response.data.msg === 'Katalog ikan berhasil diambil' && response.data.data.length > 0) {
+        // Transform data dari catalog API ke format yang sama dengan initialFishData
+        const catalogData = response.data.data.map(item => {
+          console.log('Raw catalog item:', {
             id: item.id,
-            fish_name: item.fish_name,
-            fish_image_exists: !!item.fish_image,
-            fish_image_length: item.fish_image ? item.fish_image.length : 0
+            namaIkan: item.namaIkan,
+            predictedFishName: item.predictedFishName,
+            fish_image_exists: !!item.fishImage,
+            kategori: item.kategori
           });
           
-          const formattedImage = formatImageData(item.fish_image);
+          const formattedImage = formatImageData(item.fishImage);
           
-          console.log(`Item ${item.id} processed:`, {
-            name: item.fish_name,
-            originalImageExists: !!item.fish_image,
-            formattedImageExists: !!formattedImage,
-            formattedImageValid: formattedImage && formattedImage.startsWith('data:')
+          const displayName = item.namaIkan || item.predictedFishName || 'Unknown Fish';
+          const fishType = determineType(item.kategori, item.consumptionSafety);
+          
+          console.log(`Catalog item ${item.id} processed:`, {
+            name: displayName,
+            type: fishType,
+            originalImageExists: !!item.fishImage,
+            formattedImageExists: !!formattedImage
           });
           
           return {
-            id: `api_${item.id}`, // Prefix untuk membedakan dengan placeholder
-            name: item.fish_name || item.predicted_class,
-            type: determineType(item.consumption_safety),
-            description: `Hasil scan dengan confidence ${item.confidence}`,
-            size: 'Data tidak tersedia', // Bisa ditambah field ini nanti
-            habitat: item.habitat || 'Tidak diketahui',
+            id: `catalog_${item.id}`, // Prefix untuk membedakan dengan placeholder
+            name: displayName,
+            type: fishType,
+            description: item.deskripsiTambahan || item.habitat || `Ikan ${displayName} dari database katalog`,
+            size: 'Sesuai habitat alami', // Default size
+            habitat: item.habitat || item.lokasiPenangkapan || 'Habitat alami',
             image: formattedImage,
-            // Tambahan data dari API (tidak ditampilkan tapi tersimpan)
-            confidence: item.confidence,
-            consumption_safety: item.consumption_safety,
-            prediction_date: item.prediction_date,
-            isFromAPI: true
+            // Tambahan data dari catalog API
+            contributor: item.user?.name || 'Kontributor',
+            location: item.lokasiPenangkapan,
+            dateFound: item.tanggalDitemukan,
+            condition: item.kondisiIkan,
+            safeConsumption: item.amanDikonsumsi,
+            isFromCatalog: true
           };
         });
         
-        console.log('Transformed API data:', apiData);
+        console.log('Transformed catalog data:', catalogData);
         
-        // Gabungkan data API dengan data placeholder
-        const combinedData = [...apiData, ...initialFishData];
-        setAllFishData(combinedData);
-        setFishData(combinedData);
+        // ⭐ Prioritaskan data catalog, placeholder sebagai fallback
+        if (catalogData.length > 0) {
+          setAllFishData(catalogData);
+          setFishData(catalogData);
+          console.log(`✅ Loaded ${catalogData.length} items from public catalog`);
+        } else {
+          console.log('📝 No catalog data, using placeholder');
+          setAllFishData(initialFishData);
+          setFishData(initialFishData);
+        }
       } else {
-        console.log('No data from API, using placeholder data');
-        // Jika tidak ada data dari API, gunakan data placeholder
+        console.log('📝 No catalog data from API, using placeholder data');
+        // Jika tidak ada data dari catalog API, gunakan data placeholder
         setAllFishData(initialFishData);
         setFishData(initialFishData);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
-      // Fallback ke data placeholder jika API error
-      setAllFishData(initialFishData);
-      setFishData(initialFishData);
+      console.error('❌ Error fetching catalog data:', error);
+      
+      // ⭐ Fallback: Coba endpoint lama jika catalog endpoint gagal
+      try {
+        console.log('🔄 Fallback: Trying old scan endpoint...');
+        const fallbackResponse = await axios.get(`${API_BASE_URL}/api/get-scans`);
+        
+        if (fallbackResponse.data.status === 'success' && fallbackResponse.data.data.length > 0) {
+          const scanData = fallbackResponse.data.data.map(item => ({
+            id: `scan_${item.id}`,
+            name: item.fish_name || item.predicted_class,
+            type: determineType(null, item.consumption_safety),
+            description: `Hasil scan dengan confidence ${item.confidence}`,
+            size: 'Data tidak tersedia',
+            habitat: item.habitat || 'Tidak diketahui',
+            image: formatImageData(item.fish_image),
+            confidence: item.confidence,
+            consumption_safety: item.consumption_safety,
+            prediction_date: item.prediction_date,
+            isFromScan: true
+          }));
+          
+          console.log('✅ Fallback: Loaded scan data', scanData.length);
+          const combinedData = [...scanData, ...initialFishData];
+          setAllFishData(combinedData);
+          setFishData(combinedData);
+        } else {
+          throw new Error('No fallback data available');
+        }
+      } catch (fallbackError) {
+        console.error('❌ Fallback also failed:', fallbackError);
+        // Ultimate fallback ke data placeholder
+        setAllFishData(initialFishData);
+        setFishData(initialFishData);
+      }
     } finally {
       setLoading(false);
     }
@@ -196,7 +247,7 @@ function Katalog() {
     <section className="section" id="katalog">
       <h2 className="section-title">Katalog Ikan</h2>
       <p className="section-subtitle">
-        Temukan berbagai jenis ikan konsumsi dan hias dengan informasi lengkap.
+        Katalog lengkap ikan dari database komunitas kontributor Fishmap AI.
       </p>
       <div className="katalog-filters">
         <button
@@ -221,15 +272,27 @@ function Katalog() {
       
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-          Memuat data...
+          <div style={{
+            display: 'inline-block',
+            width: '40px',
+            height: '40px',
+            border: '4px solid #e5e7eb',
+            borderTop: '4px solid #3b82f6',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '16px'
+          }}></div>
+          <br />
+          Memuat katalog dari database...
         </div>
       ) : (
         <div className="fish-grid">
           {fishData.map((fish) => {
             console.log(`Rendering fish ${fish.id}:`, {
               name: fish.name,
+              type: fish.type,
               hasImage: !!fish.image,
-              imagePreview: fish.image ? fish.image.substring(0, 50) + '...' : 'null'
+              source: fish.isFromCatalog ? 'catalog' : (fish.isFromScan ? 'scan' : 'placeholder')
             });
             
             return (
@@ -260,24 +323,24 @@ function Katalog() {
                     </div>
                   )}
                   
-                  {/* Debug info - hapus setelah debugging */}
-                  {fish.image && (
+                  {/* Badge untuk menunjukkan sumber data */}
+                  {fish.isFromCatalog && (
                     <div style={{
                       position: 'absolute',
-                      bottom: '4px',
-                      left: '4px',
-                      backgroundColor: 'rgba(0,0,0,0.7)',
+                      top: '8px',
+                      right: '8px',
+                      backgroundColor: '#10b981',
                       color: 'white',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontSize: '10px'
+                      padding: '4px 8px',
+                      borderRadius: '12px',
+                      fontSize: '10px',
+                      fontWeight: 'bold'
                     }}>
-                      IMG: {fish.image.substring(0, 20)}...
+                      KATALOG
                     </div>
                   )}
                   
-                  {/* Badge untuk item dari API */}
-                  {fish.isFromAPI && (
+                  {fish.isFromScan && (
                     <div style={{
                       position: 'absolute',
                       top: '8px',
@@ -301,8 +364,32 @@ function Katalog() {
                     <span>Habitat: {fish.habitat}</span>
                   </div>
                   
-                  {/* Tampilkan info tambahan untuk data dari API */}
-                  {fish.isFromAPI && (
+                  {/* Tampilkan info tambahan untuk data dari catalog */}
+                  {fish.isFromCatalog && (
+                    <div style={{ 
+                      marginTop: '8px', 
+                      fontSize: '12px', 
+                      color: '#666',
+                      borderTop: '1px solid #eee',
+                      paddingTop: '8px'
+                    }}>
+                      <div>👤 Kontributor: {fish.contributor}</div>
+                      {fish.location && (
+                        <div>📍 Lokasi: {fish.location}</div>
+                      )}
+                      {fish.dateFound && (
+                        <div>📅 Ditemukan: {new Date(fish.dateFound).toLocaleDateString('id-ID')}</div>
+                      )}
+                      {fish.safeConsumption !== undefined && (
+                        <div style={{ color: fish.safeConsumption ? '#10b981' : '#ef4444' }}>
+                          {fish.safeConsumption ? '✅ Aman dikonsumsi' : '⚠️ Tidak untuk konsumsi'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Tampilkan info tambahan untuk data dari scan */}
+                  {fish.isFromScan && (
                     <div style={{ 
                       marginTop: '8px', 
                       fontSize: '12px', 
@@ -324,16 +411,44 @@ function Katalog() {
       )}
       
       {fishData.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-          Tidak ada data ikan untuk kategori ini.
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#666' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🐟</div>
+          <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+            Katalog Masih Kosong
+          </h3>
+          <p style={{ fontSize: '16px', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px' }}>
+            Belum ada kontributor yang menambahkan ikan ke katalog database.
+          </p>
+          <NavLink 
+            to="/scan" 
+            style={{
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              textDecoration: 'none',
+              borderRadius: '8px',
+              padding: '12px 24px',
+              fontSize: '16px',
+              fontWeight: '500',
+              display: 'inline-block'
+            }}
+          >
+            🔍 Mulai Scan & Kontribusi
+          </NavLink>
         </div>
       )}
       
       <div className="load-more">
         <NavLink to="/toko" className="load-more-btn">
-          Muat Lebih Banyak
+          Belanja di Marketplace
         </NavLink>
       </div>
+      
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </section>
   );
 }

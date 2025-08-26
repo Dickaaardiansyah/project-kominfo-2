@@ -1,4 +1,4 @@
-// routes/index.js - Updated with Catalog Permission System
+// routes/index.js - Updated with Catalog Permission System + Email Routes + Missing Approval Status Route
 import express from 'express';
 import {
   getUsers,
@@ -42,10 +42,19 @@ import {
   getCatalogStatistics
 } from '../controllers/CatalogController.js';
 
+// ⭐ NEW: Import email controllers
+import {
+  sendCatalogReviewEmail,
+  sendCatalogApprovedEmailController,
+  sendCatalogRejectedEmailController,
+  testEmailConnection,
+  testEmailSending
+} from '../controllers/EmailController.js';
+
 import multer from 'multer';
 import Users from '../models/userModel.js';
 import { Op } from 'sequelize';
-import bcrypt from 'bcrypt'; // Tambahkan bcrypt untuk hash password
+import bcrypt from 'bcrypt';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
@@ -64,16 +73,15 @@ router.post('/resend-otp', resendOTP);
 // Endpoint untuk memperbarui data profil
 router.put('/users/update', verifyToken, async (req, res) => {
   try {
-    const userId = req.userId; // Dapatkan userId dari token
+    const userId = req.userId;
     const { username, email, password, phone, gender, birthday } = req.body;
 
-    // Validasi input
     const updateData = {};
     if (username) {
       if (username.length < 2) {
         return res.status(400).json({ msg: 'Nama pengguna minimal 2 karakter' });
       }
-      updateData.name = username; // Sesuaikan dengan field di database
+      updateData.name = username;
     }
     if (email) {
       if (!email.includes('@')) {
@@ -91,7 +99,7 @@ router.put('/users/update', verifyToken, async (req, res) => {
       if (password.length < 6) {
         return res.status(400).json({ msg: 'Password minimal 6 karakter' });
       }
-      updateData.password = await bcrypt.hash(password, 10); // Hash password
+      updateData.password = await bcrypt.hash(password, 10);
     }
     if (phone) {
       if (phone.length < 8 || !/^\d+$/.test(phone)) {
@@ -119,14 +127,11 @@ router.put('/users/update', verifyToken, async (req, res) => {
       updateData.birthday = birthday;
     }
 
-    // Jika tidak ada data yang akan diperbarui
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ msg: 'Tidak ada data yang diperbarui' });
     }
 
-    // Perbarui data pengguna
     await Users.update(updateData, { where: { id: userId } });
-
     res.status(200).json({ msg: 'Data profil berhasil diperbarui' });
   } catch (error) {
     console.error('Kesalahan saat memperbarui profil:', error);
@@ -140,18 +145,45 @@ router.post('/predict-image', upload.single('image'), predictImage);
 
 // ==================== EXISTING SAVE ROUTES ====================
 router.post('/api/save-scan', upload.single('image'), saveScan);
-router.post('/api/save-to-catalog', upload.single('image'), saveToCatalog); // Keep existing
+router.post('/api/save-to-catalog', upload.single('image'), saveToCatalog);
 router.get('/api/get-scans', getScans);
-router.get('/api/get-catalog', getCatalog); // Keep existing
+router.get('/api/get-catalog', getCatalog);
 
 // ==================== ⭐ NEW CATALOG PERMISSION SYSTEM ROUTES ====================
 // USER Catalog Routes (need login)
 router.post('/api/catalog/request-access', verifyToken, requestCatalogAccess);
 router.get('/api/catalog/my-status', verifyToken, getCatalogAccessStatus);
+
+// ⭐ TAMBAH route yang hilang untuk check approval status
+router.get('/api/catalog/approval-status', verifyToken, async (req, res) => {
+  try {
+    console.log('🔍 Checking approval status for user:', req.userId);
+    
+    // Call the existing getCatalogAccessStatus function
+    const result = await getCatalogAccessStatus(req, res);
+    
+    // If the function hasn't sent a response yet, we'll handle it here
+    if (!res.headersSent) {
+      return result;
+    }
+  } catch (error) {
+    console.error('❌ Error checking approval status:', error);
+    
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        status: 'pending',
+        msg: 'Error checking approval status',
+        error: error.message
+      });
+    }
+  }
+});
+
 router.post('/api/catalog/save-prediction', verifyToken, savePredictionToCatalog);
 
 // PUBLIC Catalog Routes (no auth needed) 
-router.get('/api/catalog/entries', getAllCatalogEntries); // New public catalog viewer
+router.get('/api/catalog/entries', getAllCatalogEntries);
 
 // ADMIN Catalog Routes (need admin login)
 router.get('/api/catalog/admin/pending-requests', verifyAdminToken, getPendingCatalogRequests);
@@ -159,8 +191,170 @@ router.post('/api/catalog/admin/approve/:userId', verifyAdminToken, approveCatal
 router.post('/api/catalog/admin/reject/:userId', verifyAdminToken, rejectCatalogRequest);
 router.get('/api/catalog/admin/statistics', verifyAdminToken, getCatalogStatistics);
 
-// ==================== ADMIN AUTH ROUTES ====================
-// Public admin routes (tidak perlu token)
+// ==================== ⭐ NEW EMAIL NOTIFICATION ROUTES ====================
+// Test email connection
+router.get('/api/email/test-connection', testEmailConnection);
+
+// User email routes (with authentication)
+router.post('/api/email/catalog-review', verifyToken, sendCatalogReviewEmail);
+
+// Admin email routes (with admin authentication)
+router.post('/api/email/catalog-approved', verifyAdminToken, sendCatalogApprovedEmailController);
+router.post('/api/email/catalog-rejected', verifyAdminToken, sendCatalogRejectedEmailController);
+
+// Admin approval/rejection with automatic email sending
+router.post('/api/email/admin/approve-user', verifyAdminToken, async (req, res) => {
+  try {
+    const { userId, email, name } = req.body;
+
+    if (!userId || !email || !name) {
+      return res.status(400).json({
+        success: false,
+        msg: 'User ID, email, dan nama harus diisi'
+      });
+    }
+
+    console.log('👨‍💼 Admin approving catalog access for user:', userId);
+
+    // Create new request object for approveCatalogRequest
+    const approvalReq = {
+      ...req,
+      params: { userId }
+    };
+
+    // Create new response object that doesn't send immediately
+    let approvalResult;
+    const approvalRes = {
+      ...res,
+      json: (data) => { approvalResult = data; return data; },
+      status: (code) => ({ json: (data) => { approvalResult = { ...data, statusCode: code }; return data; } })
+    };
+
+    // Call approval function
+    await approveCatalogRequest(approvalReq, approvalRes);
+    
+    if (approvalResult && !approvalResult.msg?.includes('gagal')) {
+      // Create email request
+      const emailReq = {
+        ...req,
+        body: { email, name }
+      };
+
+      let emailResult;
+      const emailRes = {
+        ...res,
+        json: (data) => { emailResult = data; return data; },
+        status: (code) => ({ json: (data) => { emailResult = { ...data, statusCode: code }; return data; } })
+      };
+
+      // Send approval email
+      await sendCatalogApprovedEmailController(emailReq, emailRes);
+      
+      return res.json({
+        success: true,
+        msg: `Catalog access berhasil disetujui dan email telah dikirim ke ${name}`,
+        approval: approvalResult,
+        email: emailResult
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        msg: 'Gagal menyetujui catalog access',
+        error: approvalResult
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error in admin approval with email:', error);
+    
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        msg: 'Server error saat approval user',
+        error: error.message
+      });
+    }
+  }
+});
+
+router.post('/api/email/admin/reject-user', verifyAdminToken, async (req, res) => {
+  try {
+    const { userId, email, name, reason } = req.body;
+
+    if (!userId || !email || !name) {
+      return res.status(400).json({
+        success: false,
+        msg: 'User ID, email, dan nama harus diisi'
+      });
+    }
+
+    console.log('👨‍💼 Admin rejecting catalog access for user:', userId);
+
+    // Create new request object for rejectCatalogRequest
+    const rejectionReq = {
+      ...req,
+      params: { userId },
+      body: { ...req.body, reason }
+    };
+
+    // Create new response object that doesn't send immediately
+    let rejectionResult;
+    const rejectionRes = {
+      ...res,
+      json: (data) => { rejectionResult = data; return data; },
+      status: (code) => ({ json: (data) => { rejectionResult = { ...data, statusCode: code }; return data; } })
+    };
+
+    // Call rejection function
+    await rejectCatalogRequest(rejectionReq, rejectionRes);
+    
+    if (rejectionResult && !rejectionResult.msg?.includes('gagal')) {
+      // Create email request
+      const emailReq = {
+        ...req,
+        body: { email, name, reason }
+      };
+
+      let emailResult;
+      const emailRes = {
+        ...res,
+        json: (data) => { emailResult = data; return data; },
+        status: (code) => ({ json: (data) => { emailResult = { ...data, statusCode: code }; return data; } })
+      };
+
+      // Send rejection email
+      await sendCatalogRejectedEmailController(emailReq, emailRes);
+      
+      return res.json({
+        success: true,
+        msg: `Catalog access berhasil ditolak dan email telah dikirim ke ${name}`,
+        rejection: rejectionResult,
+        email: emailResult
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        msg: 'Gagal menolak catalog access',
+        error: rejectionResult
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error in admin rejection with email:', error);
+    
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        msg: 'Server error saat reject user',
+        error: error.message
+      });
+    }
+  }
+});
+
+// Test email sending (for development)
+router.post('/api/email/test', testEmailSending);
+
 // ==================== ADMIN AUTH ROUTES ====================
 router.post('/admin/create', createAdmin);
 router.post('/admin/login', loginAdmin);

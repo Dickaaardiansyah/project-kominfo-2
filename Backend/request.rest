@@ -16,8 +16,8 @@ POST http://localhost:5000/login
 Content-Type: application/json
 
 {
-  "email": "maulana@example.com",
-  "password": "password123"
+  "email": "anakbudiman01@gmail.com",
+  "password": "123456"
 }
 
 ### Register Admin
@@ -32,3 +32,8 @@ Content-Type: application/json
   "password": "password123",
   "role": "super_admin"
 }
+
+### tes
+GET http://localhost:5000/api/catalog/entries?my_data_only=true
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsIm5hbWUiOiJNYXVsYW5hIE51cmZhaXppIEFudWdlcmFoIiwiZW1haWwiOiJhbmFrYnVkaW1hbjAxQGdtYWlsLmNvbSIsImlhdCI6MTc1NjE3ODQwNiwiZXhwIjoxNzU2MTgyMDA2fQ.ZbLsHw41TF_5-W0SmFI-m3LvFmmpcoo7uSufYr3lGr4
