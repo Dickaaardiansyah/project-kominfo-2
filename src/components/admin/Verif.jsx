@@ -13,9 +13,9 @@ function Verif() {
                 </h2>
                 <div className={styles.filters}>
                     <button className={`${styles.filterBtn} ${styles.active}`} data-filter="all">Semua</button>
-                    <button className={styles.filterBtn} data-filter="pending">Menunggu</button>
-                    <button className={styles.filterBtn} data-filter="priority">Prioritas</button>
-                    <button className={styles.filterBtn} data-filter="complete">Dokumen Lengkap</button>
+                    <button className={styles.filterBtn} data-filter="pending">Menunggu Verifikasi</button>
+                    <button className={styles.filterBtn} data-filter="priority">Diterima</button>   
+                    <button className={styles.filterBtn} data-filter="complete">Ditolak</button>
                 </div>
             </div>
     );

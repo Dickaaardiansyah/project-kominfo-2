@@ -6,15 +6,32 @@
     const [selectedIDType, setSelectedIDType] = useState('ktp');
     const [isUploaded, setIsUploaded] = useState(false);
 
-    const handleFileUpload = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        // Simulasi upload file
-        setTimeout(() => {
-          setIsUploaded(true);
-        }, 1000);
+const handleFileUpload = async (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const formData = new FormData();
+    formData.append('ktp', file);
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/catalog/upload-ktp', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setIsUploaded(true);
+        console.log('KTP uploaded:', result.ktpUrl);
       }
-    };
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Gagal mengunggah KTP');
+    }
+  }
+};
 
     return (
       <div className="upload-id-page">

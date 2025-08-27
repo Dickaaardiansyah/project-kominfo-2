@@ -39,7 +39,8 @@ import {
   getPendingCatalogRequests,
   approveCatalogRequest,
   rejectCatalogRequest,
-  getCatalogStatistics
+  getCatalogStatistics,
+  uploadKTP
 } from '../controllers/CatalogController.js';
 
 // ⭐ NEW: Import email controllers
@@ -57,7 +58,10 @@ import { Op } from 'sequelize';
 import bcrypt from 'bcrypt';
 
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({
+  dest: 'uploads/',
+  limits: { fileSize: 5 * 1024 * 1024 } // Maksimal 5MB
+});
 
 // ==================== AUTH ROUTES ====================
 router.get('/users', verifyToken, getUsers);
@@ -158,17 +162,17 @@ router.get('/api/catalog/my-status', verifyToken, getCatalogAccessStatus);
 router.get('/api/catalog/approval-status', verifyToken, async (req, res) => {
   try {
     console.log('🔍 Checking approval status for user:', req.userId);
-    
+
     // Call the existing getCatalogAccessStatus function
     const result = await getCatalogAccessStatus(req, res);
-    
+
     // If the function hasn't sent a response yet, we'll handle it here
     if (!res.headersSent) {
       return result;
     }
   } catch (error) {
     console.error('❌ Error checking approval status:', error);
-    
+
     if (!res.headersSent) {
       return res.status(500).json({
         success: false,
@@ -184,6 +188,7 @@ router.post('/api/catalog/save-prediction', verifyToken, savePredictionToCatalog
 
 // PUBLIC Catalog Routes (no auth needed) 
 router.get('/api/catalog/entries', getAllCatalogEntries);
+router.post('/api/catalog/upload-ktp', verifyToken, upload.single('ktp'), uploadKTP);
 
 // ADMIN Catalog Routes (need admin login)
 router.get('/api/catalog/admin/pending-requests', verifyAdminToken, getPendingCatalogRequests);
@@ -232,7 +237,7 @@ router.post('/api/email/admin/approve-user', verifyAdminToken, async (req, res) 
 
     // Call approval function
     await approveCatalogRequest(approvalReq, approvalRes);
-    
+
     if (approvalResult && !approvalResult.msg?.includes('gagal')) {
       // Create email request
       const emailReq = {
@@ -249,7 +254,7 @@ router.post('/api/email/admin/approve-user', verifyAdminToken, async (req, res) 
 
       // Send approval email
       await sendCatalogApprovedEmailController(emailReq, emailRes);
-      
+
       return res.json({
         success: true,
         msg: `Catalog access berhasil disetujui dan email telah dikirim ke ${name}`,
@@ -266,7 +271,7 @@ router.post('/api/email/admin/approve-user', verifyAdminToken, async (req, res) 
 
   } catch (error) {
     console.error('❌ Error in admin approval with email:', error);
-    
+
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
@@ -307,7 +312,7 @@ router.post('/api/email/admin/reject-user', verifyAdminToken, async (req, res) =
 
     // Call rejection function
     await rejectCatalogRequest(rejectionReq, rejectionRes);
-    
+
     if (rejectionResult && !rejectionResult.msg?.includes('gagal')) {
       // Create email request
       const emailReq = {
@@ -324,7 +329,7 @@ router.post('/api/email/admin/reject-user', verifyAdminToken, async (req, res) =
 
       // Send rejection email
       await sendCatalogRejectedEmailController(emailReq, emailRes);
-      
+
       return res.json({
         success: true,
         msg: `Catalog access berhasil ditolak dan email telah dikirim ke ${name}`,
@@ -341,7 +346,7 @@ router.post('/api/email/admin/reject-user', verifyAdminToken, async (req, res) =
 
   } catch (error) {
     console.error('❌ Error in admin rejection with email:', error);
-    
+
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
