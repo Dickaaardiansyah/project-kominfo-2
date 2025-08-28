@@ -1,3 +1,4 @@
+// routes/index.js - Updated with Catalog Permission System
 import express from 'express';
 import {
   getUsers,
@@ -28,6 +29,19 @@ import {
 } from '../controllers/Admin.js';
 import { verifyAdminToken, requireSuperAdmin } from '../middleware/VerifyAdminToken.js';
 import { refreshAdminToken } from '../controllers/AdminRefreshToken.js';
+
+// ⭐ NEW: Import updated catalog controllers
+import {
+  requestCatalogAccess,
+  getCatalogAccessStatus,
+  savePredictionToCatalog,
+  getAllCatalogEntries,
+  getPendingCatalogRequests,
+  approveCatalogRequest,
+  rejectCatalogRequest,
+  getCatalogStatistics
+} from '../controllers/CatalogController.js';
+
 import multer from 'multer';
 import Users from '../models/userModel.js';
 import { Op } from 'sequelize';
@@ -124,14 +138,29 @@ router.put('/users/update', verifyToken, async (req, res) => {
 router.post('/predict', predictTabular);
 router.post('/predict-image', upload.single('image'), predictImage);
 
-// ==================== SAVE ROUTES ====================
+// ==================== EXISTING SAVE ROUTES ====================
 router.post('/api/save-scan', upload.single('image'), saveScan);
-router.post('/api/save-to-catalog', upload.single('image'), saveToCatalog);
-
-// ==================== GET DATA ROUTES ====================
+router.post('/api/save-to-catalog', upload.single('image'), saveToCatalog); // Keep existing
 router.get('/api/get-scans', getScans);
-router.get('/api/get-catalog', getCatalog);
+router.get('/api/get-catalog', getCatalog); // Keep existing
 
+// ==================== ⭐ NEW CATALOG PERMISSION SYSTEM ROUTES ====================
+// USER Catalog Routes (need login)
+router.post('/api/catalog/request-access', verifyToken, requestCatalogAccess);
+router.get('/api/catalog/my-status', verifyToken, getCatalogAccessStatus);
+router.post('/api/catalog/save-prediction', verifyToken, savePredictionToCatalog);
+
+// PUBLIC Catalog Routes (no auth needed) 
+router.get('/api/catalog/entries', getAllCatalogEntries); // New public catalog viewer
+
+// ADMIN Catalog Routes (need admin login)
+router.get('/api/catalog/admin/pending-requests', verifyAdminToken, getPendingCatalogRequests);
+router.post('/api/catalog/admin/approve/:userId', verifyAdminToken, approveCatalogRequest);
+router.post('/api/catalog/admin/reject/:userId', verifyAdminToken, rejectCatalogRequest);
+router.get('/api/catalog/admin/statistics', verifyAdminToken, getCatalogStatistics);
+
+// ==================== ADMIN AUTH ROUTES ====================
+// Public admin routes (tidak perlu token)
 // ==================== ADMIN AUTH ROUTES ====================
 router.post('/admin/create', createAdmin);
 router.post('/admin/login', loginAdmin);

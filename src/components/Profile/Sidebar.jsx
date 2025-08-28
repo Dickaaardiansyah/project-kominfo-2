@@ -31,7 +31,7 @@ function Sidebar() {
       id: 'marketplace',
       icon: <ShoppingBag size={20} />,
       label: 'Marketplace',
-      path: '/marketplace'
+      path: '/katalog/daftar'
     }
   ];
 

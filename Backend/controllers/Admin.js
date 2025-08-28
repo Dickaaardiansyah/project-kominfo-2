@@ -45,7 +45,7 @@ export const createAdmin = async (req, res) => {
         email,
         gender,
         password,
-        role = 'seller_verifier' // Default role
+        role = 'catalog_moderator' // Default role
     } = req.body;
 
     // Validasi input dasar
@@ -126,6 +126,110 @@ export const createAdmin = async (req, res) => {
         res.status(500).json({
             msg: "Terjadi kesalahan server"
         });
+    }
+};
+
+// ⭐ TAMBAHAN: Function baru untuk admin dashboard stats
+export const getAdminDashboardStats = async (req, res) => {
+    try {
+        const adminId = req.adminId;
+        
+        // Cek admin permission
+        const admin = await Admin.findByPk(adminId);
+        if (!admin) {
+            return res.status(404).json({ msg: "Admin tidak ditemukan" });
+        }
+
+        // Import Users model untuk stats
+        const Users = (await import('../models/userModel.js')).default;
+        const FishPredictions = (await import('../models/fishPredictionModel.js')).default;
+
+        // Get statistics
+        const stats = await Promise.all([
+            // Total users
+            Users.count(),
+            
+            // Users by role
+            Users.count({ where: { role: 'user' } }),
+            Users.count({ where: { role: 'contributor' } }),
+            
+            // Pending catalog requests
+            Users.count({ where: { catalog_request_status: 'pending' } }),
+            
+            // Total predictions
+            FishPredictions.count(),
+            
+            // Catalog entries (predictions saved to catalog)
+            FishPredictions.count({ 
+                where: { 
+                    namaIkan: { [Op.ne]: null } 
+                } 
+            })
+        ]);
+
+        const [
+            totalUsers,
+            regularUsers, 
+            contributors,
+            pendingRequests,
+            totalPredictions,
+            catalogEntries
+        ] = stats;
+
+        res.status(200).json({
+            msg: "Dashboard stats berhasil diambil",
+            data: {
+                users: {
+                    total: totalUsers,
+                    regular: regularUsers,
+                    contributors: contributors,
+                    pending_requests: pendingRequests
+                },
+                predictions: {
+                    total: totalPredictions,
+                    in_catalog: catalogEntries
+                },
+                admin_info: {
+                    name: admin.name,
+                    role: admin.role,
+                    permissions: admin.permissions || Admin.getDefaultPermissions(admin.role)
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching admin dashboard stats:', error);
+        res.status(500).json({ msg: "Server error" });
+    }
+};
+
+// ⭐ TAMBAHAN: Function untuk get admin permissions
+export const getAdminPermissions = async (req, res) => {
+    try {
+        const adminId = req.adminId;
+        
+        const admin = await Admin.findByPk(adminId);
+        if (!admin) {
+            return res.status(404).json({ msg: "Admin tidak ditemukan" });
+        }
+
+        const permissions = {
+            can_approve_catalog_requests: admin.canApproveCatalogRequests(),
+            can_manage_users: admin.canManageUsers(),
+            can_manage_admins: admin.canManageAdmins(),
+            can_moderate_content: admin.canModerateContent(),
+            role: admin.role,
+            status: admin.status
+        };
+
+        res.status(200).json({
+            msg: "Admin permissions berhasil diambil",
+            data: permissions
+        });
+
+    } catch (error) {
+        console.error('Error fetching admin permissions:', error);
+        res.status(500).json({ msg: "Server error" });
     }
 };
 
