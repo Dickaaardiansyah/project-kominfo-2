@@ -7,6 +7,7 @@ import FishPredictions from '../models/fishPredictionModel.js'; // Import model 
 import Users from '../models/userModel.js'; // Import Users model
 import jwt from 'jsonwebtoken';
 import { Op } from 'sequelize'; // Import Sequelize operators
+import DataIkan from '../models/dataIkanModel.js';
 
 // Untuk ES module (__dirname)
 const __filename = fileURLToPath(import.meta.url);
@@ -160,6 +161,69 @@ export const predictImage = (req, res) => {
 };
 
 // ==================== DATABASE SAVE FUNCTIONS ====================
+
+//getdatatohistory
+export const getAllDataIkan = async (req, res) => {
+  try {
+    const data = await DataIkan.findAll({
+      include: [{ model: Users, as: 'user', attributes: ['id', 'name', 'email'] }],
+      order: [['createdAt', 'DESC']]
+    });
+
+    const formatted = data.map(item => ({
+      id: item.id,
+      date: item.createdAt,
+      status: "completed",
+      fishData: {
+        name: item.namaIkan,
+        predicted_class: item.predictedClass,
+        confidence: `${(item.probability * 100).toFixed(1)}%`,
+        habitat: item.habitat,
+        konsumsi: item.konsumsi,
+        icon: "🐟",
+        top_predictions: item.notes ? JSON.parse(item.notes.replace("Top 3 predictions: ", "") || "[]") : []
+      },
+      image: item.fishImage
+    }));
+
+    res.json({ status: "success", data: formatted });
+  } catch (err) {
+    console.error("Error fetching data_ikan:", err);
+    res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+export const saveToDataIkan = async (req, res) => {
+  try {
+    let userId = getUserIdFromToken(req) || req.body.userId || 1;
+
+    const { fish_name, predicted_class, confidence, habitat, konsumsi, top_predictions, notes } = req.body;
+    if (!fish_name || !predicted_class || !confidence) {
+      return res.status(400).json({ status: 'error', message: 'fish_name, predicted_class, dan confidence harus diisi' });
+    }
+
+    let fishImageBase64 = null;
+    if (req.file) {
+      fishImageBase64 = await convertImageToBase64(req.file.path);
+    }
+
+    const newData = await DataIkan.create({
+      userId,
+      namaIkan: fish_name,
+      predictedClass: predicted_class,
+      probability: parseFloat(confidence) / 100,
+      habitat: habitat || 'Tidak diketahui',
+      konsumsi: konsumsi || 'Tidak diketahui',
+      fishImage: fishImageBase64,
+      notes: notes || `Top 3 predictions: ${top_predictions || '[]'}`
+    });
+
+    res.json({ status: 'success', message: 'Data berhasil disimpan ke data_ikan', data: newData });
+  } catch (err) {
+    console.error('Error saving to data_ikan:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
 
 // Save scan result to database table
 export const saveScan = async (req, res) => {

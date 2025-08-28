@@ -55,7 +55,6 @@ function ScanUpload() {
         console.log('🔍 User catalog status:', result.data);
       } else {
         console.error('Failed to get user status:', response.statusText);
-        // Fallback to basic user status
         setUserStatus({ 
           can_access_catalog: false, 
           role: 'user',
@@ -76,11 +75,10 @@ function ScanUpload() {
     }
   };
 
-  // ⭐ UPDATED: Request catalog access (now pending approval)
-const requestCatalogAccess = () => {
-  // Direct to catalog registration page
-  navigate('/katalog/daftar');
-};
+  // ⭐ Request catalog access (redirect ke halaman daftar katalog)
+  const requestCatalogAccess = () => {
+    navigate('/katalog/daftar');
+  };
 
   // ⭐ Show success toast notification
   const showSuccessToast = (message) => {
@@ -130,7 +128,6 @@ const requestCatalogAccess = () => {
         alert('Silakan pilih file gambar yang valid');
         return;
       }
-
       if (file.size > 10 * 1024 * 1024) {
         alert('Ukuran file terlalu besar. Maksimal 10MB');
         return;
@@ -258,7 +255,7 @@ const requestCatalogAccess = () => {
     }
   };
 
-  // Save to database
+  // ⭐ Save to database data_ikan (for button Simpan)
   const saveToDatabase = async () => {
     if (!analysisResult || !selectedImage) {
       alert('Tidak ada data untuk disimpan');
@@ -270,11 +267,10 @@ const requestCatalogAccess = () => {
 
     try {
       const formData = new FormData();
-      
       if (imageFile) {
         formData.append('image', imageFile);
       }
-      
+
       formData.append('fish_name', analysisResult.name || analysisResult.predicted_class);
       formData.append('predicted_class', analysisResult.predicted_class);
       formData.append('confidence', parseFloat(analysisResult.confidence.replace('%', '')));
@@ -282,9 +278,8 @@ const requestCatalogAccess = () => {
       formData.append('konsumsi', analysisResult.konsumsi);
       formData.append('top_predictions', JSON.stringify(analysisResult.top_predictions));
       formData.append('timestamp', new Date().toISOString());
-      formData.append('saved_to_catalog', 'false');
 
-      const response = await fetch(`${API_BASE_URL}/api/save-scan`, {
+      const response = await fetch(`${API_BASE_URL}/api/save-to-dataikan`, {
         method: 'POST',
         mode: 'cors',
         body: formData
@@ -298,7 +293,7 @@ const requestCatalogAccess = () => {
       const result = await response.json();
 
       if (result.status === 'success' || result.success) {
-        alert('Data berhasil disimpan ke database!');
+        alert('Data berhasil disimpan ke database data_ikan!');
       } else {
         throw new Error(result.message || 'Gagal menyimpan data');
       }
@@ -347,7 +342,7 @@ const requestCatalogAccess = () => {
     stopCamera();
   };
 
-  // ⭐ UPDATED: Render permission status info
+  // ⭐ Render permission info
   const renderPermissionInfo = () => {
     if (isCheckingStatus) {
       return (
@@ -387,11 +382,9 @@ const requestCatalogAccess = () => {
       );
     }
 
-    // ⭐ UPDATED: Handle pending status
     if (userStatus.request_status === 'pending') {
       const requestDate = userStatus.request_date ? new Date(userStatus.request_date) : null;
       const daysWaiting = requestDate ? Math.floor((new Date() - requestDate) / (1000 * 60 * 60 * 24)) : 0;
-      
       return (
         <div className="permission-info pending">
           <i className="fas fa-clock"></i>
@@ -420,86 +413,52 @@ const requestCatalogAccess = () => {
     );
   };
 
-  // ⭐ UPDATED: Render catalog button
+  // ⭐ Render catalog button
   const renderCatalogButton = () => {
     if (isCheckingStatus || !userStatus) return null;
 
-    // Guest user - show login prompt
     if (userStatus.role === 'guest') {
       return (
-        <button 
-          onClick={() => navigate('/login')}
-          className="login-button"
-        >
-          <i className="fas fa-sign-in-alt"></i> 
-          Login untuk Akses Katalog
+        <button onClick={() => navigate('/login')} className="login-button">
+          <i className="fas fa-sign-in-alt"></i> Login untuk Akses Katalog
         </button>
       );
     }
 
-    // User can access catalog (approved contributor)
     if (userStatus.can_access_catalog) {
       return (
-        <button 
-          onClick={goToAddKatalog} 
-          className="catalog-button"
-          disabled={isSaving}
-        >
-          <i className="fas fa-plus"></i> 
-          Tambah ke Katalog +
+        <button onClick={goToAddKatalog} className="catalog-button" disabled={isSaving}>
+          <i className="fas fa-plus"></i> Tambah ke Katalog +
         </button>
       );
     }
 
-    // User email not verified
     if (!userStatus.is_email_verified) {
       return (
-        <button 
-          className="catalog-button disabled"
-          disabled
-          title="Verifikasi email terlebih dahulu"
-        >
-          <i className="fas fa-envelope"></i> 
-          Verifikasi Email Dulu
+        <button className="catalog-button disabled" disabled title="Verifikasi email terlebih dahulu">
+          <i className="fas fa-envelope"></i> Verifikasi Email Dulu
         </button>
       );
     }
 
-    // ⭐ UPDATED: User request pending
     if (userStatus.request_status === 'pending') {
       return (
-        <button 
-          className="catalog-button pending"
-          disabled
-          title="Request sedang direview admin"
-        >
-          <i className="fas fa-clock"></i> 
-          Sedang Direview Admin...
+        <button className="catalog-button pending" disabled title="Request sedang direview admin">
+          <i className="fas fa-clock"></i> Sedang Direview Admin...
         </button>
       );
     }
 
-    // User request rejected
     if (userStatus.request_status === 'rejected') {
       return (
-        <button 
-          className="catalog-button rejected"
-          disabled
-          title={`Ditolak: ${userStatus.rejection_reason}`}
-        >
-          <i className="fas fa-ban"></i> 
-          Request Ditolak
+        <button className="catalog-button rejected" disabled title={`Ditolak: ${userStatus.rejection_reason}`}>
+          <i className="fas fa-ban"></i> Request Ditolak
         </button>
       );
     }
 
-    // ⭐ User can request access
     return (
-      <button 
-        onClick={requestCatalogAccess}
-        className="request-access-button"
-        disabled={isRequestingAccess}
-      >
+      <button onClick={requestCatalogAccess} className="request-access-button" disabled={isRequestingAccess}>
         <i className="fas fa-paper-plane"></i> 
         {isRequestingAccess ? 'Mengirim Request...' : 'Request Akses Katalog'}
       </button>
@@ -511,10 +470,8 @@ const requestCatalogAccess = () => {
       <h2 className="section-title">Scan Ikanmu Disini</h2>
       <p className="section-subtitle">100% Otomatis dan Gratis</p>
       
-      {/* Permission Status Info */}
       {renderPermissionInfo()}
       
-      {/* Error Display */}
       {error && (
         <div className="error-message" style={{
           backgroundColor: '#fee2e2',
@@ -538,14 +495,7 @@ const requestCatalogAccess = () => {
           <p className="scan-text">Unggah Gambar atau Gunakan Kamera</p>
           <p className="scan-hint">Atau Drop File kamu (Max 10MB)</p>
           
-          <input 
-            type="file" 
-            id="file-upload" 
-            accept="image/*" 
-            className="file-input" 
-            onChange={handleFileUpload}
-            style={{ display: 'none' }}
-          />
+          <input type="file" id="file-upload" accept="image/*" className="file-input" onChange={handleFileUpload} style={{ display: 'none' }} />
           
           <div className="button-group">
             <label htmlFor="file-upload" className="file-label">
@@ -560,12 +510,7 @@ const requestCatalogAccess = () => {
 
       {isCamera && (
         <div className="camera-container">
-          <video 
-            ref={videoRef} 
-            autoPlay 
-            playsInline 
-            className="camera-video"
-          />
+          <video ref={videoRef} autoPlay playsInline className="camera-video" />
           <canvas ref={canvasRef} style={{ display: 'none' }} />
           <div className="camera-controls">
             <button onClick={capturePhoto} className="capture-button">
@@ -580,7 +525,7 @@ const requestCatalogAccess = () => {
 
       {selectedImage && (
         <div className="result-container">
-          <div className="image-preview">
+                    <div className="image-preview">
             <img src={selectedImage} alt="Preview" className="preview-image" />
           </div>
 
@@ -644,6 +589,7 @@ const requestCatalogAccess = () => {
               </div>
               
               <div className="action-buttons">
+                {/* Tombol Simpan → simpan ke data_ikan */}
                 <button 
                   onClick={saveToDatabase} 
                   className="save-button"
@@ -653,7 +599,7 @@ const requestCatalogAccess = () => {
                   {isSaving ? 'Menyimpan...' : 'Simpan'}
                 </button>
                 
-                {/* ⭐ UPDATED: Conditional catalog button */}
+                {/* Tombol Tambah ke Katalog */}
                 {renderCatalogButton()}
               </div>
             </div>
@@ -673,3 +619,4 @@ const requestCatalogAccess = () => {
 }
 
 export default ScanUpload;
+

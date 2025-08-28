@@ -17,7 +17,6 @@ function Home() {
       <Gallery />
       <Weather />
       <Contact />
-      <Footer />
     </div>
   );
 }

@@ -46,6 +46,8 @@ import multer from 'multer';
 import Users from '../models/userModel.js';
 import { Op } from 'sequelize';
 import bcrypt from 'bcrypt'; // Tambahkan bcrypt untuk hash password
+import { saveToDataIkan } from '../controllers/Models.js';
+import { getAllDataIkan } from '../controllers/Models.js';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
@@ -172,5 +174,9 @@ router.get('/admin/profile', verifyAdminToken, getAdmin);
 router.get('/admin/all', verifyAdminToken, requireSuperAdmin, getAllAdmins);
 router.put('/admin/:adminId/status', verifyAdminToken, requireSuperAdmin, updateAdminStatus);
 router.put('/admin/:adminId/password', verifyAdminToken, updateAdminPassword);
+
+//dataikan
+router.post('/api/save-to-dataikan', upload.single('image'), saveToDataIkan);
+router.get('/api/data-ikan', getAllDataIkan);
 
 export default router;
