@@ -52,6 +52,14 @@ import {
   testEmailSending
 } from '../controllers/EmailController.js';
 
+import {
+  getAllGalery,
+  getGaleryById, 
+  createGalery,
+  updateGalery,
+  deleteGalery
+} from '../controllers/Galery.js';
+
 import multer from 'multer';
 import Users from '../models/userModel.js';
 import { Op } from 'sequelize';
@@ -360,6 +368,10 @@ router.post('/api/email/admin/reject-user', verifyAdminToken, async (req, res) =
 // Test email sending (for development)
 router.post('/api/email/test', testEmailSending);
 
+// ==================== GALERY PUBLIC ROUTES (NO AUTH) ====================
+// Tambahkan setelah email routes dan sebelum admin auth routes
+
+
 // ==================== ADMIN AUTH ROUTES ====================
 router.post('/admin/create', createAdmin);
 router.post('/admin/login', loginAdmin);
@@ -372,4 +384,10 @@ router.get('/admin/all', verifyAdminToken, requireSuperAdmin, getAllAdmins);
 router.put('/admin/:adminId/status', verifyAdminToken, requireSuperAdmin, updateAdminStatus);
 router.put('/admin/:adminId/password', verifyAdminToken, updateAdminPassword);
 
+// Admin routes (perlu auth admin) - untuk mengelola galeri
+router.get('/api/galery', getAllGalery);
+router.get('/api/galery/:id', getGaleryById);
+router.post('/api/galery', verifyAdminToken, createGalery);
+router.put('/api/galery/:id', verifyAdminToken, updateGalery);
+router.delete('/api/galery/:id', verifyAdminToken, deleteGalery);
 export default router;

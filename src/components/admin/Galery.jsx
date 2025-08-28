@@ -1,37 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import styles from "../../styles/admin/Dashboard.module.css";
 import Sidebar from '../admin/Sidebar';
 import Header from '../admin/Header';
+import axios from 'axios';
 
 function Galery() {
-  // Sample data galeri
-  const [galeriData, setGaleriData] = useState([
-    {
-      id: 1,
-      nama: "Ikan Kakap Merah Segar",
-      gambar: "https://images.unsplash.com/photo-1544943910-4c1dc44aab44?w=300&h=200&fit=crop",
-      deskripsi: "Ikan kakap merah segar hasil tangkapan nelayan lokal dengan kualitas premium. Cocok untuk berbagai olahan masakan."
-    },
-    {
-      id: 2,
-      nama: "Ikan Tongkol Premium",
-      gambar: "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=300&h=200&fit=crop",
-      deskripsi: "Ikan tongkol berkualitas tinggi, daging tebal dan segar. Ideal untuk pembuatan abon ikan dan masakan tradisional."
-    },
-    {
-      id: 3,
-      nama: "Ikan Bandeng Tanpa Duri",
-      gambar: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300&h=200&fit=crop",
-      deskripsi: "Ikan bandeng yang sudah diproses tanpa duri, memudahkan konsumsi terutama untuk anak-anak."
-    },
-    {
-      id: 4,
-      nama: "Udang Vaname Jumbo",
-      gambar: "https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=300&h=200&fit=crop",
-      deskripsi: "Udang vaname jumbo segar dengan ukuran besar. Tekstur kenyal dan rasa manis alami."
-    }
-  ]);
-
+  const [galeriData, setGaleriData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -41,11 +16,79 @@ function Galery() {
     deskripsi: ''
   });
   const [previewImage, setPreviewImage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // API Base URL
+  const API_BASE_URL = 'http://localhost:5000/api';
+
+
+
+  // Get admin token - coba localStorage dulu, jika tidak ada gunakan refresh token
+  const getAdminToken = async () => {
+    // Coba ambil dari localStorage dulu
+    let token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
+
+    if (token) {
+      return token;
+    }
+
+    // Jika tidak ada, coba refresh token dari cookies
+    try {
+      const response = await axios.get(`${API_BASE_URL.replace('/api', '')}/admin/token`, {
+        withCredentials: true // Include cookies
+      });
+
+      if (response.data && response.data.accessToken) {
+        const newToken = response.data.accessToken;
+        // Simpan token baru ke localStorage
+        localStorage.setItem('adminToken', newToken);
+        return newToken;
+      }
+    } catch (error) {
+      console.error('Error refreshing admin token:', error);
+    }
+
+    return null;
+  };
+
+  // API Headers with token - async version
+  const getAuthHeaders = async () => {
+    const token = await getAdminToken();
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+  };
+
+  // Fetch galeri data from API
+  const fetchGaleriData = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API_BASE_URL}/galery?page=1&limit=100`);
+
+      if (response.data && response.data.data) {
+        setGaleriData(response.data.data);
+      } else {
+        setGaleriData([]);
+      }
+    } catch (error) {
+      console.error('Error fetching galeri data:', error);
+      setGaleriData([]);
+      alert('Gagal mengambil data galeri: ' + (error.response?.data?.msg || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchGaleriData();
+  }, []);
 
   // Filter data berdasarkan search
   const filteredData = useMemo(() => {
     if (!searchTerm) return galeriData;
-    
+
     return galeriData.filter(item =>
       item.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.deskripsi.toLowerCase().includes(searchTerm.toLowerCase())
@@ -61,8 +104,45 @@ function Galery() {
     }));
   };
 
+  // Fungsi untuk compress image base64
+  const compressImage = (file, maxWidth = 800, quality = 0.7) => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      img.onload = () => {
+        // Calculate new dimensions
+        let { width, height } = img;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxWidth) {
+            width = (width * maxWidth) / height;
+            height = maxWidth;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   // Handle file upload
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
       // Validasi file type
@@ -70,24 +150,40 @@ function Galery() {
         alert('File harus berupa gambar!');
         return;
       }
-      
+
       // Validasi ukuran file (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         alert('Ukuran file maksimal 5MB!');
         return;
       }
 
-      // Convert to base64 untuk preview dan storage
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target.result;
-        setPreviewImage(result);
+      try {
+        // Show loading indicator
+        setPreviewImage('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+Cjx0ZXh0IHg9IjEwMCIgeT0iNzUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzY0NzQ4YiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TWVtcHJvc2VzLi4uPC90ZXh0Pgo8L3N2Zz4=');
+
+        // Compress image
+        const compressedBase64 = await compressImage(file);
+
+        // Check compressed size (base64 is ~33% larger than original)
+        const sizeInMB = (compressedBase64.length * 3 / 4) / (1024 * 1024);
+
+        if (sizeInMB > 10) { // Limit compressed image to 10MB
+          alert('Gambar terlalu besar setelah dikompresi. Coba gunakan gambar yang lebih kecil.');
+          setPreviewImage('');
+          return;
+        }
+
+        setPreviewImage(compressedBase64);
         setFormData(prev => ({
           ...prev,
-          gambar: result
+          gambar: compressedBase64
         }));
-      };
-      reader.readAsDataURL(file);
+
+      } catch (error) {
+        console.error('Error processing image:', error);
+        alert('Gagal memproses gambar. Coba gunakan gambar lain.');
+        setPreviewImage('');
+      }
     }
   };
 
@@ -112,41 +208,110 @@ function Galery() {
   };
 
   // Handle delete
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('Apakah Anda yakin ingin menghapus item ini?')) {
-      setGaleriData(prev => prev.filter(item => item.id !== id));
+      try {
+        const headers = await getAuthHeaders();
+        await axios.delete(`${API_BASE_URL}/galery/${id}`, { headers });
+
+        // Refresh data setelah delete
+        await fetchGaleriData();
+        alert('Galeri berhasil dihapus');
+      } catch (error) {
+        console.error('Error deleting galeri:', error);
+        alert('Gagal menghapus galeri: ' + (error.response?.data?.msg || error.message));
+      }
     }
   };
 
   // Handle form submit
-  const handleSubmit = (e) => {
+  // Update handleSubmit dengan error handling yang lebih baik
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.nama || !formData.gambar || !formData.deskripsi) {
-      alert('Semua field harus diisi dan gambar harus dipilih!');
+
+    // Validasi yang lebih ketat
+    if (!formData.nama || formData.nama.trim().length < 3) {
+      alert('Nama harus diisi minimal 3 karakter!');
       return;
     }
 
-    if (editingItem) {
-      // Update existing item
-      setGaleriData(prev => prev.map(item => 
-        item.id === editingItem.id 
-          ? { ...item, ...formData }
-          : item
-      ));
-    } else {
-      // Create new item
-      const newItem = {
-        id: Math.max(...galeriData.map(item => item.id)) + 1,
-        ...formData
-      };
-      setGaleriData(prev => [...prev, newItem]);
+    if (!formData.gambar) {
+      alert('Gambar harus dipilih!');
+      return;
     }
 
-    setIsModalOpen(false);
-    setFormData({ nama: '', gambar: '', deskripsi: '' });
-    setPreviewImage('');
-    setEditingItem(null);
+    if (!formData.deskripsi || formData.deskripsi.trim().length < 10) {
+      alert('Deskripsi harus diisi minimal 10 karakter!');
+      return;
+    }
+
+    // Check base64 size
+    const imageSizeInMB = (formData.gambar.length * 3 / 4) / (1024 * 1024);
+    if (imageSizeInMB > 15) { // Limit to 15MB
+      alert('Ukuran gambar terlalu besar untuk disimpan. Coba kompres gambar atau gunakan gambar yang lebih kecil.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const headers = await getAuthHeaders();
+
+      // Trim data sebelum dikirim
+      const dataToSend = {
+        nama: formData.nama.trim(),
+        gambar: formData.gambar,
+        deskripsi: formData.deskripsi.trim()
+      };
+
+      console.log('Sending data, image size:', imageSizeInMB.toFixed(2), 'MB');
+
+      if (editingItem) {
+        await axios.put(`${API_BASE_URL}/galery/${editingItem.id}`, dataToSend, {
+          headers,
+          timeout: 30000 // 30 seconds timeout
+        });
+        alert('Galeri berhasil diperbarui');
+      } else {
+        await axios.post(`${API_BASE_URL}/galery`, dataToSend, {
+          headers,
+          timeout: 30000 // 30 seconds timeout
+        });
+        alert('Galeri berhasil ditambahkan');
+      }
+
+      await fetchGaleriData();
+      setIsModalOpen(false);
+      setFormData({ nama: '', gambar: '', deskripsi: '' });
+      setPreviewImage('');
+      setEditingItem(null);
+
+    } catch (error) {
+      console.error('Error saving galeri:', error);
+
+      if (error.code === 'ECONNABORTED') {
+        alert('Timeout: Gambar terlalu besar atau koneksi lambat. Coba gunakan gambar yang lebih kecil.');
+      } else if (error.response?.status === 401) {
+        alert('Sesi admin expired. Silakan refresh halaman dan login ulang.');
+      } else if (error.response?.status === 413) {
+        alert('Gambar terlalu besar untuk server. Coba gunakan gambar yang lebih kecil.');
+      } else if (error.response?.data?.errors) {
+        // Handle validation errors dari backend
+        const errorMessages = error.response.data.errors.map(err => {
+          if (err.field === 'gambar' && err.message.includes('too long')) {
+            return 'Ukuran gambar terlalu besar untuk database';
+          }
+          return `${err.field}: ${err.message}`;
+        }).join('\n');
+        alert(`Gagal menyimpan galeri:\n${errorMessages}`);
+      } else if (error.response?.status >= 500) {
+        alert('Server error. Kemungkinan gambar terlalu besar atau ada masalah server. Coba gunakan gambar yang lebih kecil.');
+      } else {
+        alert('Gagal menyimpan galeri: ' + (error.response?.data?.msg || error.message));
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -159,18 +324,18 @@ function Galery() {
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>
               <svg className={styles.sectionIcon} viewBox="0 0 24 24" fill="currentColor">
-                <path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11.5-9L8 10.5l1.5 1.5L8 15h2.5l1.5-3 1.5 3H16l-1.5-3 1.5-3h-2.5L12 12 10.5 9h-2.5z"/>
-                <path d="M2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/>
+                <path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11.5-9L8 10.5l1.5 1.5L8 15h2.5l1.5-3 1.5 3H16l-1.5-3 1.5-3h-2.5L12 12 10.5 9h-2.5z" />
+                <path d="M2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z" />
               </svg>
-              Galeri ({filteredData.length})
+              Galeri ({loading ? '...' : filteredData.length})
             </h2>
           </div>
 
           {/* Search and Create Section */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '1rem', 
-            marginBottom: '2rem', 
+          <div style={{
+            display: 'flex',
+            gap: '1rem',
+            marginBottom: '2rem',
             flexWrap: 'wrap',
             alignItems: 'center',
             justifyContent: 'space-between'
@@ -182,6 +347,7 @@ function Galery() {
                 placeholder="Cari berdasarkan nama atau deskripsi..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={loading}
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem',
@@ -189,7 +355,8 @@ function Galery() {
                   borderRadius: '8px',
                   fontSize: '0.9rem',
                   outline: 'none',
-                  transition: 'border-color 0.3s ease'
+                  transition: 'border-color 0.3s ease',
+                  opacity: loading ? 0.6 : 1
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#0891b2'}
                 onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
@@ -197,9 +364,14 @@ function Galery() {
             </div>
 
             {/* Create Button */}
-            <button 
+            <button
               onClick={handleCreate}
+              disabled={loading}
               className={styles.btn + ' ' + styles.btnSuccess}
+              style={{
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
             >
               <svg style={{ width: '16px', height: '16px', marginRight: '0.5rem' }} viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
@@ -208,139 +380,180 @@ function Galery() {
             </button>
           </div>
 
+          {/* Loading State */}
+          {loading && (
+            <div style={{
+              textAlign: 'center',
+              padding: '3rem',
+              color: '#64748b',
+              fontSize: '1.1rem'
+            }}>
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  border: '4px solid #e2e8f0',
+                  borderTop: '4px solid #0891b2',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                  margin: '0 auto 1rem'
+                }}></div>
+              </div>
+              <div>Memuat data galeri...</div>
+            </div>
+          )}
+
           {/* Table */}
-          <div style={{ 
-            overflowX: 'auto',
-            backgroundColor: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                <tr>
-                  <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: '#1e293b', width: '150px' }}>
-                    Gambar
-                  </th>
-                  <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: '#1e293b' }}>
-                    Nama
-                  </th>
-                  <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: '#1e293b' }}>
-                    Deskripsi
-                  </th>
-                  <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#1e293b', width: '120px' }}>
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.length > 0 ? (
-                  filteredData.map((item, index) => (
-                    <tr 
-                      key={item.id}
-                      style={{ 
-                        borderBottom: '1px solid #e2e8f0',
-                        backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fafb'
-                      }}
-                    >
-                      <td style={{ padding: '1rem' }}>
-                        <img 
-                          src={item.gambar} 
-                          alt={item.nama}
-                          style={{
-                            width: '100px',
-                            height: '70px',
-                            objectFit: 'cover',
-                            borderRadius: '8px',
-                            border: '2px solid #e2e8f0'
-                          }}
-                        />
-                      </td>
-                      <td style={{ padding: '1rem' }}>
-                        <div style={{ fontWeight: '600', color: '#1e293b', fontSize: '1rem' }}>
-                          {item.nama}
-                        </div>
-                      </td>
-                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#475569', maxWidth: '400px' }}>
-                        {item.deskripsi}
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          <button 
-                            onClick={() => handleEdit(item)}
+          {!loading && (
+            <div style={{
+              overflowX: 'auto',
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                  <tr>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: '#1e293b', width: '150px' }}>
+                      Gambar
+                    </th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: '#1e293b' }}>
+                      Nama
+                    </th>
+                    <th style={{ padding: '1rem', textAlign: 'left', fontWeight: '600', color: '#1e293b' }}>
+                      Deskripsi
+                    </th>
+                    <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '600', color: '#1e293b', width: '120px' }}>
+                      Aksi
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.length > 0 ? (
+                    filteredData.map((item, index) => (
+                      <tr
+                        key={item.id}
+                        style={{
+                          borderBottom: '1px solid #e2e8f0',
+                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fafb'
+                        }}
+                      >
+                        <td style={{ padding: '1rem' }}>
+                          <img
+                            src={item.gambar}
+                            alt={item.nama}
                             style={{
-                              padding: '0.5rem 0.75rem',
-                              border: 'none',
-                              borderRadius: '6px',
-                              backgroundColor: '#059669',
-                              color: '#ffffff',
-                              cursor: 'pointer',
-                              transition: 'all 0.3s ease',
-                              fontSize: '0.8rem',
-                              fontWeight: '500'
+                              width: '100px',
+                              height: '70px',
+                              objectFit: 'cover',
+                              borderRadius: '8px',
+                              border: '2px solid #e2e8f0'
                             }}
-                            onMouseOver={(e) => e.target.style.backgroundColor = '#047857'}
-                            onMouseOut={(e) => e.target.style.backgroundColor = '#059669'}
-                            title="Edit"
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(item.id)}
-                            style={{
-                              padding: '0.5rem 0.75rem',
-                              border: 'none',
-                              borderRadius: '6px',
-                              backgroundColor: '#dc2626',
-                              color: '#ffffff',
-                              cursor: 'pointer',
-                              transition: 'all 0.3s ease',
-                              fontSize: '0.8rem',
-                              fontWeight: '500'
+                            onError={(e) => {
+                              e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjcwIiB2aWV3Qm94PSIwIDAgMTAwIDcwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjcwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik00MCAzNUw0NSAzMEw1NSA0MEw2MCAzNUw3MCA0NUg3MFY1NUgzMFY0NUw0MCAzNVoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+';
                             }}
-                            onMouseOver={(e) => e.target.style.backgroundColor = '#b91c1c'}
-                            onMouseOut={(e) => e.target.style.backgroundColor = '#dc2626'}
-                            title="Hapus"
-                          >
-                            Hapus
-                          </button>
+                          />
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <div style={{ fontWeight: '600', color: '#1e293b', fontSize: '1rem' }}>
+                            {item.nama}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem' }}>
+                            {new Date(item.createdAt).toLocaleDateString('id-ID')}
+                          </div>
+                        </td>
+                        <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#475569', maxWidth: '400px' }}>
+                          <div style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {item.deskripsi}
+                          </div>
+                        </td>
+                        <td style={{ padding: '1rem', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => handleEdit(item)}
+                              disabled={submitting}
+                              style={{
+                                padding: '0.5rem 0.75rem',
+                                border: 'none',
+                                borderRadius: '6px',
+                                backgroundColor: submitting ? '#94a3b8' : '#059669',
+                                color: '#ffffff',
+                                cursor: submitting ? 'not-allowed' : 'pointer',
+                                transition: 'all 0.3s ease',
+                                fontSize: '0.8rem',
+                                fontWeight: '500'
+                              }}
+                              onMouseOver={(e) => !submitting && (e.target.style.backgroundColor = '#047857')}
+                              onMouseOut={(e) => !submitting && (e.target.style.backgroundColor = '#059669')}
+                              title="Edit"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              disabled={submitting}
+                              style={{
+                                padding: '0.5rem 0.75rem',
+                                border: 'none',
+                                borderRadius: '6px',
+                                backgroundColor: submitting ? '#94a3b8' : '#dc2626',
+                                color: '#ffffff',
+                                cursor: submitting ? 'not-allowed' : 'pointer',
+                                transition: 'all 0.3s ease',
+                                fontSize: '0.8rem',
+                                fontWeight: '500'
+                              }}
+                              onMouseOver={(e) => !submitting && (e.target.style.backgroundColor = '#b91c1c')}
+                              onMouseOut={(e) => !submitting && (e.target.style.backgroundColor = '#dc2626')}
+                              title="Hapus"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="4" style={{
+                        padding: '3rem',
+                        textAlign: 'center',
+                        color: '#64748b',
+                        fontSize: '1.1rem'
+                      }}>
+                        <div>
+                          <svg style={{ width: '48px', height: '48px', marginBottom: '1rem', opacity: '0.5' }} viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2z" />
+                            <path d="M2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z" />
+                          </svg>
+                          <div>Tidak ada data galeri ditemukan</div>
+                          {searchTerm && (
+                            <div style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                              Coba ubah kata kunci pencarian
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="4" style={{ 
-                      padding: '3rem', 
-                      textAlign: 'center', 
-                      color: '#64748b',
-                      fontSize: '1.1rem'
-                    }}>
-                      <div>
-                        <svg style={{ width: '48px', height: '48px', marginBottom: '1rem', opacity: '0.5' }} viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2z"/>
-                          <path d="M2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/>
-                        </svg>
-                        <div>Tidak ada data galeri ditemukan</div>
-                        {searchTerm && (
-                          <div style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                            Coba ubah kata kunci pencarian
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Summary */}
-          {filteredData.length > 0 && (
-            <div style={{ 
-              marginTop: '1.5rem', 
-              padding: '1rem', 
-              backgroundColor: '#f8fafc', 
+          {!loading && filteredData.length > 0 && (
+            <div style={{
+              marginTop: '1.5rem',
+              padding: '1rem',
+              backgroundColor: '#f8fafc',
               borderRadius: '8px',
               fontSize: '0.9rem',
               color: '#64748b'
@@ -395,11 +608,12 @@ function Galery() {
                 </h3>
                 <button
                   onClick={() => setIsModalOpen(false)}
+                  disabled={submitting}
                   style={{
                     background: 'none',
                     border: 'none',
                     fontSize: '1.5rem',
-                    cursor: 'pointer',
+                    cursor: submitting ? 'not-allowed' : 'pointer',
                     color: '#64748b',
                     width: '32px',
                     height: '32px',
@@ -407,15 +621,8 @@ function Galery() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'all 0.3s ease'
-                  }}
-                  onMouseOver={(e) => {
-                    e.target.style.backgroundColor = '#f1f5f9';
-                    e.target.style.color = '#1e293b';
-                  }}
-                  onMouseOut={(e) => {
-                    e.target.style.backgroundColor = 'transparent';
-                    e.target.style.color = '#64748b';
+                    transition: 'all 0.3s ease',
+                    opacity: submitting ? 0.6 : 1
                   }}
                 >
                   ×
@@ -424,6 +631,7 @@ function Galery() {
 
               {/* Modal Form */}
               <form onSubmit={handleSubmit}>
+                {/* Form Input Nama dengan Real-time Validation */}
                 <div style={{ marginBottom: '1.5rem' }}>
                   <label style={{
                     display: 'block',
@@ -438,22 +646,46 @@ function Galery() {
                     name="nama"
                     value={formData.nama}
                     onChange={handleInputChange}
-                    placeholder="Masukkan nama gambar"
+                    disabled={submitting}
+                    placeholder="Masukkan nama gambar (minimal 3 karakter)"
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      border: '2px solid #e2e8f0',
+                      border: `2px solid ${formData.nama.length > 0 && formData.nama.length < 3
+                        ? '#dc2626'
+                        : '#e2e8f0'
+                        }`,
                       borderRadius: '8px',
                       fontSize: '0.9rem',
                       outline: 'none',
-                      transition: 'border-color 0.3s ease'
+                      transition: 'border-color 0.3s ease',
+                      opacity: submitting ? 0.6 : 1
                     }}
                     onFocus={(e) => e.target.style.borderColor = '#0891b2'}
-                    onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                    onBlur={(e) => e.target.style.borderColor = formData.nama.length > 0 && formData.nama.length < 3 ? '#dc2626' : '#e2e8f0'}
                     required
                   />
+                  {formData.nama.length > 0 && formData.nama.length < 3 && (
+                    <div style={{
+                      fontSize: '0.8rem',
+                      color: '#dc2626',
+                      marginTop: '0.5rem'
+                    }}>
+                      Nama minimal 3 karakter (saat ini: {formData.nama.length} karakter)
+                    </div>
+                  )}
+                  {formData.nama.length >= 3 && (
+                    <div style={{
+                      fontSize: '0.8rem',
+                      color: '#059669',
+                      marginTop: '0.5rem'
+                    }}>
+                      ✓ Nama valid ({formData.nama.length}/100 karakter)
+                    </div>
+                  )}
                 </div>
 
+                {/* Form Input Gambar */}
                 <div style={{ marginBottom: '1.5rem' }}>
                   <label style={{
                     display: 'block',
@@ -467,6 +699,7 @@ function Galery() {
                     type="file"
                     accept="image/*"
                     onChange={handleFileChange}
+                    disabled={submitting}
                     style={{
                       width: '100%',
                       padding: '0.75rem',
@@ -475,32 +708,33 @@ function Galery() {
                       fontSize: '0.9rem',
                       outline: 'none',
                       backgroundColor: '#f8fafc',
-                      cursor: 'pointer',
-                      transition: 'border-color 0.3s ease'
+                      cursor: submitting ? 'not-allowed' : 'pointer',
+                      transition: 'border-color 0.3s ease',
+                      opacity: submitting ? 0.6 : 1
                     }}
                     onFocus={(e) => e.target.style.borderColor = '#0891b2'}
                     onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
                   />
-                  <div style={{ 
-                    fontSize: '0.8rem', 
-                    color: '#64748b', 
-                    marginTop: '0.5rem' 
+                  <div style={{
+                    fontSize: '0.8rem',
+                    color: '#64748b',
+                    marginTop: '0.5rem'
                   }}>
                     Format yang didukung: JPG, PNG, GIF. Maksimal 5MB.
                   </div>
                   {previewImage && (
                     <div style={{ marginTop: '1rem' }}>
-                      <div style={{ 
-                        fontSize: '0.9rem', 
-                        fontWeight: '500', 
-                        color: '#1e293b', 
-                        marginBottom: '0.5rem' 
+                      <div style={{
+                        fontSize: '0.9rem',
+                        fontWeight: '500',
+                        color: '#1e293b',
+                        marginBottom: '0.5rem'
                       }}>
                         Preview:
                       </div>
                       <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <img 
-                          src={previewImage} 
+                        <img
+                          src={previewImage}
                           alt="Preview"
                           style={{
                             width: '200px',
@@ -516,6 +750,7 @@ function Galery() {
                             setPreviewImage('');
                             setFormData(prev => ({ ...prev, gambar: '' }));
                           }}
+                          disabled={submitting}
                           style={{
                             position: 'absolute',
                             top: '5px',
@@ -526,11 +761,12 @@ function Galery() {
                             width: '24px',
                             height: '24px',
                             color: 'white',
-                            cursor: 'pointer',
+                            cursor: submitting ? 'not-allowed' : 'pointer',
                             fontSize: '14px',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            opacity: submitting ? 0.6 : 1
                           }}
                           title="Hapus gambar"
                         >
@@ -541,6 +777,7 @@ function Galery() {
                   )}
                 </div>
 
+                {/* Form Input Deskripsi dengan Real-time Validation - HANYA SATU INI */}
                 <div style={{ marginBottom: '2rem' }}>
                   <label style={{
                     display: 'block',
@@ -554,23 +791,46 @@ function Galery() {
                     name="deskripsi"
                     value={formData.deskripsi}
                     onChange={handleInputChange}
-                    placeholder="Masukkan deskripsi gambar"
+                    disabled={submitting}
+                    placeholder="Masukkan deskripsi gambar (minimal 10 karakter)"
                     rows="4"
                     style={{
                       width: '100%',
                       padding: '0.75rem',
-                      border: '2px solid #e2e8f0',
+                      border: `2px solid ${formData.deskripsi.length > 0 && formData.deskripsi.length < 10
+                        ? '#dc2626'
+                        : '#e2e8f0'
+                        }`,
                       borderRadius: '8px',
                       fontSize: '0.9rem',
                       outline: 'none',
                       resize: 'vertical',
                       fontFamily: 'inherit',
-                      transition: 'border-color 0.3s ease'
+                      transition: 'border-color 0.3s ease',
+                      opacity: submitting ? 0.6 : 1
                     }}
                     onFocus={(e) => e.target.style.borderColor = '#0891b2'}
-                    onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                    onBlur={(e) => e.target.style.borderColor = formData.deskripsi.length > 0 && formData.deskripsi.length < 10 ? '#dc2626' : '#e2e8f0'}
                     required
                   />
+                  {formData.deskripsi.length > 0 && formData.deskripsi.length < 10 && (
+                    <div style={{
+                      fontSize: '0.8rem',
+                      color: '#dc2626',
+                      marginTop: '0.5rem'
+                    }}>
+                      Deskripsi minimal 10 karakter (saat ini: {formData.deskripsi.length} karakter)
+                    </div>
+                  )}
+                  {formData.deskripsi.length >= 10 && (
+                    <div style={{
+                      fontSize: '0.8rem',
+                      color: '#059669',
+                      marginTop: '0.5rem'
+                    }}>
+                      ✓ Deskripsi valid ({formData.deskripsi.length}/1000 karakter)
+                    </div>
+                  )}
                 </div>
 
                 {/* Modal Actions */}
@@ -582,43 +842,36 @@ function Galery() {
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
+                    disabled={submitting}
                     style={{
                       padding: '0.75rem 1.5rem',
                       border: '2px solid #e2e8f0',
                       backgroundColor: '#ffffff',
                       color: '#64748b',
                       borderRadius: '8px',
-                      cursor: 'pointer',
+                      cursor: submitting ? 'not-allowed' : 'pointer',
                       fontWeight: '500',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseOver={(e) => {
-                      e.target.style.borderColor = '#0891b2';
-                      e.target.style.color = '#0891b2';
-                    }}
-                    onMouseOut={(e) => {
-                      e.target.style.borderColor = '#e2e8f0';
-                      e.target.style.color = '#64748b';
+                      transition: 'all 0.3s ease',
+                      opacity: submitting ? 0.6 : 1
                     }}
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
+                    disabled={submitting}
                     style={{
                       padding: '0.75rem 1.5rem',
                       border: 'none',
-                      backgroundColor: '#0891b2',
+                      backgroundColor: submitting ? '#94a3b8' : '#0891b2',
                       color: '#ffffff',
                       borderRadius: '8px',
-                      cursor: 'pointer',
+                      cursor: submitting ? 'not-allowed' : 'pointer',
                       fontWeight: '500',
                       transition: 'all 0.3s ease'
                     }}
-                    onMouseOver={(e) => e.target.style.backgroundColor = '#0e7490'}
-                    onMouseOut={(e) => e.target.style.backgroundColor = '#0891b2'}
                   >
-                    {editingItem ? 'Perbarui' : 'Simpan'}
+                    {submitting ? 'Menyimpan...' : (editingItem ? 'Perbarui' : 'Simpan')}
                   </button>
                 </div>
               </form>
@@ -626,8 +879,18 @@ function Galery() {
           </div>
         )}
       </main>
+
+      {/* Loading Spinner CSS */}
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
+
+
 }
 
 export default Galery;
