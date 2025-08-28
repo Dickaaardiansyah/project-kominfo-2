@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // Ditambahkan untuk redirect
+import { useAdminAuth } from './auth/AdminAuthContext'; // Ditambahkan
 import styles from "../../styles/admin/Dashboard.module.css";
 
 function Verifcard() {
@@ -12,6 +14,8 @@ function Verifcard() {
   const [selectedAppData, setSelectedAppData] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
+  const { getAuthHeader } = useAdminAuth(); // Ditambahkan
+  const navigate = useNavigate(); // Ditambahkan untuk redirect
   const API_BASE_URL = 'http://localhost:5000';
 
   // ⭐ Load pending requests from API
@@ -21,18 +25,11 @@ function Verifcard() {
 
   const loadPendingRequests = async () => {
     try {
-      const token = localStorage.getItem('adminAccessToken'); // Admin token
-      if (!token) {
-        setError('Token admin tidak ditemukan');
-        return;
-      }
-
+      const headers = await getAuthHeader(); // Diubah: Gunakan getAuthHeader
       const response = await fetch(`${API_BASE_URL}/api/catalog/admin/pending-requests`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers,
+        credentials: 'include' // Ditambahkan untuk kirim cookie
       });
 
       if (response.ok) {
@@ -41,11 +38,18 @@ function Verifcard() {
         setApplications(result.data || []);
       } else {
         const errorResult = await response.json();
+        if (errorResult.needLogin) { // Ditambahkan: Handle needLogin
+          navigate('/admin/login');
+          return;
+        }
         setError(errorResult.msg || 'Gagal memuat data pending requests');
       }
     } catch (error) {
       console.error('Error loading pending requests:', error);
       setError('Gagal terhubung ke server');
+      if (error.message === 'No valid access token available') { // Ditambahkan
+        navigate('/admin/login');
+      }
     } finally {
       setLoading(false);
     }
@@ -53,40 +57,37 @@ function Verifcard() {
 
   // ⭐ Approve application
   const approveApplication = async (userId) => {
-    if (processingId) return; // Prevent double click
-
+    if (processingId) return;
     setProcessingId(userId);
     try {
-      const token = localStorage.getItem('adminAccessToken');
+      const headers = await getAuthHeader(); // Diubah: Gunakan getAuthHeader
       const response = await fetch(`${API_BASE_URL}/api/catalog/admin/approve/${userId}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers,
+        credentials: 'include' // Ditambahkan
       });
 
       const result = await response.json();
 
       if (response.ok) {
         console.log('✅ Application approved:', result);
-
-        // Remove approved application from list
         setApplications(prevApps => prevApps.filter(app => app.id !== userId));
-
-        // Show success message
         alert(`✅ Request dari ${result.data.user_name} berhasil disetujui!`);
-
-        // Optional: Show toast notification
         showToast(`${result.data.user_name} sekarang menjadi kontributor katalog`, 'success');
-
       } else {
         console.error('❌ Approval failed:', result);
+        if (result.needLogin) { // Ditambahkan
+          navigate('/admin/login');
+          return;
+        }
         alert(`❌ Gagal menyetujui: ${result.msg}`);
       }
     } catch (error) {
       console.error('Error approving application:', error);
       alert('❌ Gagal menyetujui aplikasi. Coba lagi nanti.');
+      if (error.message === 'No valid access token available') { // Ditambahkan
+        navigate('/admin/login');
+      }
     } finally {
       setProcessingId(null);
     }
@@ -98,16 +99,12 @@ function Verifcard() {
       alert('Alasan penolakan harus diisi');
       return;
     }
-
     try {
-      const token = localStorage.getItem('adminAccessToken');
-
+      const headers = await getAuthHeader(); // Diubah: Gunakan getAuthHeader
       const response = await fetch(`${API_BASE_URL}/api/catalog/admin/reject/${selectedAppId}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers,
+        credentials: 'include', // Ditambahkan
         body: JSON.stringify({
           rejection_reason: rejectionReason
         })
@@ -117,27 +114,26 @@ function Verifcard() {
 
       if (response.ok) {
         console.log('❌ Application rejected:', result);
-
-        // Remove rejected application from list
         setApplications(prevApps => prevApps.filter(app => app.id !== selectedAppId));
-
-        // Close modal and reset
         setShowRejectModal(false);
         setSelectedAppId(null);
         setRejectionReason('');
-
-        // Show success message
         alert(`❌ Request dari ${result.data.user_name} ditolak.`);
-
         showToast(`Request ${result.data.user_name} ditolak`, 'warning');
-
       } else {
         console.error('❌ Rejection failed:', result);
+        if (result.needLogin) { // Ditambahkan
+          navigate('/admin/login');
+          return;
+        }
         alert(`❌ Gagal menolak: ${result.msg}`);
       }
     } catch (error) {
       console.error('Error rejecting application:', error);
       alert('❌ Gagal menolak aplikasi. Coba lagi nanti.');
+      if (error.message === 'No valid access token available') { // Ditambahkan
+        navigate('/admin/login');
+      }
     }
   };
 
