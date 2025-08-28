@@ -38,7 +38,7 @@ const Users = db.define("users", {
       len: [6, 100]
     }
   },
-  
+
   // ⭐ Field untuk OTP Email Verification
   otp_code: {
     type: DataTypes.STRING(6),
@@ -99,26 +99,36 @@ const Users = db.define("users", {
     type: DataTypes.TEXT,
     allowNull: true,
     comment: 'Alasan rejection akses katalog'
+  },
+  ktp_image_path: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Path file gambar KTP'
+  },
+  ktp_image_url: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'URL akses gambar KTP'
   }
 }, {
   freezeTableName: true
 });
 
 // ⭐ Instance Methods untuk cek akses
-Users.prototype.canAccessCatalog = function() {
+Users.prototype.canAccessCatalog = function () {
   return this.role === 'contributor' || this.role === 'admin';
 };
 
-Users.prototype.canApproveCatalog = function() {
+Users.prototype.canApproveCatalog = function () {
   return this.role === 'admin';
 };
 
-Users.prototype.isEmailVerified = function() {
+Users.prototype.isEmailVerified = function () {
   return this.is_verified === true;
 };
 
 // ⭐ Static Methods untuk query berdasarkan role
-Users.getContributors = function() {
+Users.getContributors = function () {
   return this.findAll({
     where: {
       role: ['contributor', 'admin']
@@ -126,7 +136,7 @@ Users.getContributors = function() {
   });
 };
 
-Users.getPendingCatalogRequests = function() {
+Users.getPendingCatalogRequests = function () {
   return this.findAll({
     where: {
       catalog_request_status: 'pending'

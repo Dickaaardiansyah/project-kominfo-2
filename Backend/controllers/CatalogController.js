@@ -3,11 +3,18 @@ import Admin from '../models/adminModel.js';
 import FishPredictions from '../models/fishPredictionModel.js';
 import { Op } from 'sequelize';
 
+// ⭐ IMPORT email functions
+import {
+    sendCatalogApprovedEmail,
+    sendCatalogRejectedEmail,
+    sendCatalogReviewEmail
+} from '../services/emailService.js';
+
 // ⭐ FIXED: Get catalog access status - proper email verification check
 export const getCatalogAccessStatus = async (req, res) => {
     try {
         const userId = req.userId;
-        
+
         const user = await Users.findByPk(userId);
         if (!user) {
             return res.status(404).json({ msg: "User tidak ditemukan" });
@@ -63,7 +70,7 @@ export const requestCatalogAccess = async (req, res) => {
 
         // Cek email verification
         const isEmailVerified = user.is_verified === true;
-        
+
         if (!isEmailVerified) {
             return res.status(400).json({
                 msg: "Verifikasi email terlebih dahulu sebelum request akses katalog"
@@ -100,13 +107,29 @@ export const requestCatalogAccess = async (req, res) => {
 
         console.log('📝 Catalog request submitted for approval:', user.name);
 
+        // ⭐ NEW: Send review notification email
+        try {
+            console.log('📧 Sending review notification email to:', user.email);
+            const emailResult = await sendCatalogReviewEmail(user.email, user.name);
+
+            if (emailResult.success) {
+                console.log('✅ Review notification email sent successfully:', emailResult.messageId);
+            } else {
+                console.log('⚠️ Failed to send review notification email');
+            }
+        } catch (emailError) {
+            console.error('⚠️ Error sending review notification email:', emailError.message);
+            // Don't fail the whole process if email fails
+        }
+
         res.status(200).json({
             msg: "Request akses katalog berhasil dikirim! Tim kami akan review dalam 1-3 hari kerja.",
             data: {
                 request_status: 'pending',
                 request_date: new Date(),
                 reason: reason || null,
-                message: "Request Anda sedang dalam antrian review admin."
+                message: "Request Anda sedang dalam antrian review admin.",
+                email_notification: "Email notifikasi telah dikirim ke " + user.email
             }
         });
 
@@ -120,7 +143,7 @@ export const requestCatalogAccess = async (req, res) => {
 export const savePredictionToCatalog = async (req, res) => {
     try {
         const userId = req.userId;
-        
+
         const user = await Users.findByPk(userId);
         if (!user || !(user.role === 'contributor' || user.role === 'admin')) {
             return res.status(403).json({
@@ -183,23 +206,74 @@ export const savePredictionToCatalog = async (req, res) => {
     }
 };
 
-// ⭐ GET ALL CATALOG ENTRIES (public)
+// SIMPLIFIED getAllCatalogEntries - Handle token internally
+import jwt from 'jsonwebtoken';
+
 export const getAllCatalogEntries = async (req, res) => {
     try {
-        const { 
-            kategori, 
-            lokasi, 
+        console.log('🔍 getAllCatalogEntries called');
+
+        const {
+            kategori,
+            lokasi,
             search,
-            page = 1, 
-            limit = 10 
+            page = 1,
+            limit = 50,
+            my_data_only = false
         } = req.query;
 
         const offset = (page - 1) * limit;
-        
-        const whereCondition = {
+
+        // MANUAL TOKEN HANDLING - Extract user ID if token exists
+        let userId = null;
+        let userName = null;
+
+        try {
+            const authHeader = req.headers['authorization'];
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                const token = authHeader.substring(7);
+                const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+                userId = decoded.userId;
+                userName = decoded.name;
+                console.log('✅ Token decoded successfully for user:', userId);
+            } else {
+                console.log('ℹ️ No token provided');
+            }
+        } catch (tokenError) {
+            console.log('⚠️ Token invalid or expired, continuing without auth:', tokenError.message);
+        }
+
+        // Build where condition
+        let whereCondition = {
             namaIkan: { [Op.ne]: null }
         };
 
+        // Filter by current user if requested and authenticated
+        if (my_data_only === 'true') {
+            if (userId) {
+                whereCondition.userId = userId;
+                console.log('🔒 Filtering data for user:', userId);
+            } else {
+                // If user wants personal data but not authenticated, return empty
+                console.log('❌ Personal data requested but no valid token');
+                return res.status(200).json({
+                    msg: "Silakan login untuk melihat data pribadi",
+                    data: [],
+                    pagination: {
+                        total_items: 0,
+                        total_pages: 0,
+                        current_page: parseInt(page),
+                        items_per_page: parseInt(limit)
+                    },
+                    info: {
+                        requires_login: true,
+                        message: "Data pribadi memerlukan login"
+                    }
+                });
+            }
+        }
+
+        // Apply other filters
         if (kategori) {
             whereCondition.kategori = kategori;
         }
@@ -216,48 +290,104 @@ export const getAllCatalogEntries = async (req, res) => {
             ];
         }
 
+        console.log('🎯 Query conditions:', {
+            whereCondition,
+            my_data_only,
+            authenticated_user: userId || 'none'
+        });
+
+        // DEBUG: Check data availability
+        const totalInDb = await FishPredictions.count();
+        const catalogCount = await FishPredictions.count({
+            where: { namaIkan: { [Op.ne]: null } }
+        });
+        console.log(`📊 Database stats: ${totalInDb} total, ${catalogCount} in catalog`);
+
+        if (my_data_only === 'true' && userId) {
+            const userDataCount = await FishPredictions.count({
+                where: { userId, namaIkan: { [Op.ne]: null } }
+            });
+            console.log(`👤 User ${userId} has ${userDataCount} catalog entries`);
+
+            if (userDataCount === 0) {
+                return res.status(200).json({
+                    msg: "Anda belum memiliki data katalog",
+                    data: [],
+                    pagination: {
+                        total_items: 0,
+                        total_pages: 0,
+                        current_page: parseInt(page),
+                        items_per_page: parseInt(limit)
+                    },
+                    info: {
+                        user_id: userId,
+                        user_name: userName,
+                        message: "Upload data melalui scan untuk menambah ke katalog"
+                    }
+                });
+            }
+        }
+
+        // Execute main query
         const catalogEntries = await FishPredictions.findAndCountAll({
             where: whereCondition,
             include: [
                 {
                     model: Users,
                     as: 'user',
-                    attributes: ['id', 'name']
+                    attributes: ['id', 'name'],
+                    required: false
                 }
             ],
             attributes: [
-                'id', 'namaIkan', 'predictedFishName', 'kategori', 
+                'id', 'namaIkan', 'predictedFishName', 'kategori',
                 'deskripsiTambahan', 'tanggalDitemukan', 'lokasiPenangkapan',
-                'kondisiIkan', 'tingkatKeamanan', 'amanDikonsumsi', 
-                'habitat', 'fishImage', 'createdAt'
+                'kondisiIkan', 'tingkatKeamanan', 'amanDikonsumsi',
+                'habitat', 'fishImage', 'createdAt', 'consumptionSafety',
+                'userId'
             ],
             order: [['createdAt', 'DESC']],
             limit: parseInt(limit),
             offset: parseInt(offset)
         });
 
+        console.log(`✅ Query successful: ${catalogEntries.count} total, ${catalogEntries.rows.length} returned`);
+
         res.status(200).json({
-            msg: "Katalog ikan berhasil diambil",
+            msg: my_data_only === 'true'
+                ? `Data katalog pribadi berhasil diambil (${catalogEntries.count} item)`
+                : "Katalog ikan berhasil diambil",
             data: catalogEntries.rows,
             pagination: {
                 total_items: catalogEntries.count,
                 total_pages: Math.ceil(catalogEntries.count / limit),
                 current_page: parseInt(page),
                 items_per_page: parseInt(limit)
+            },
+            filter_info: {
+                is_personal_data: my_data_only === 'true',
+                authenticated_user: userId || null,
+                user_name: userName || null,
+                total_in_database: totalInDb,
+                total_in_catalog: catalogCount
             }
         });
 
     } catch (error) {
-        console.error('Error fetching catalog entries:', error);
-        res.status(500).json({ msg: "Server error" });
+        console.error('❌ Error in getAllCatalogEntries:', error);
+        res.status(500).json({
+            msg: "Server error",
+            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
     }
 };
 
-// ⭐ ADMIN: Get pending catalog requests (will be empty due to auto-approve)
+// ⭐ ADMIN: Get pending catalog requests
+// Di CatalogController.js, update query untuk include field KTP
 export const getPendingCatalogRequests = async (req, res) => {
     try {
         const adminId = req.adminId;
-        
+
         // Cek admin permission
         const admin = await Admin.findByPk(adminId);
         if (!admin) {
@@ -266,7 +396,7 @@ export const getPendingCatalogRequests = async (req, res) => {
             });
         }
 
-        // Get pending requests with full user details
+        // GET pending requests WITH KTP data
         const pendingRequests = await Users.findAll({
             where: {
                 catalog_request_status: 'pending'
@@ -274,12 +404,13 @@ export const getPendingCatalogRequests = async (req, res) => {
             attributes: [
                 'id', 'name', 'email', 'phone', 'gender',
                 'catalog_request_date', 'catalog_request_status',
-                'createdAt'
+                'createdAt',
+                'ktp_image_url', 'ktp_image_path' // ⭐ TAMBAHKAN INI
             ],
             order: [['catalog_request_date', 'ASC']]
         });
 
-        // Format data for admin dashboard
+        // Format data untuk admin dashboard WITH KTP
         const formattedRequests = pendingRequests.map(user => ({
             id: user.id,
             nama: user.name,
@@ -289,7 +420,7 @@ export const getPendingCatalogRequests = async (req, res) => {
             status: 'pending',
             tanggalDaftar: new Date(user.catalog_request_date).toLocaleDateString('id-ID', {
                 day: '2-digit',
-                month: 'long', 
+                month: 'long',
                 year: 'numeric'
             }),
             tanggalRegistrasi: new Date(user.createdAt).toLocaleDateString('id-ID', {
@@ -301,7 +432,9 @@ export const getPendingCatalogRequests = async (req, res) => {
             jenisKontribusi: 'Database Katalog Ikan',
             pengalaman: 'Pengguna Fishmap AI',
             daysWaiting: Math.floor((new Date() - new Date(user.catalog_request_date)) / (1000 * 60 * 60 * 24)),
-            dokumen: ['Verifikasi Email', 'Account Aktif'] // Basic verification
+            dokumen: ['Verifikasi Email', 'Account Aktif'],
+            fotoKtp: user.ktp_image_url || null, // ⭐ TAMBAHKAN INI
+            ktpPath: user.ktp_image_path || null  // ⭐ TAMBAHKAN INI
         }));
 
         res.status(200).json({
@@ -399,15 +532,15 @@ export const getCatalogStatistics = async (req, res) => {
         const pendingRequests = await Users.count({ where: { catalog_request_status: 'pending' } });
         const approvedRequests = await Users.count({ where: { catalog_request_status: 'approved' } });
         const rejectedRequests = await Users.count({ where: { catalog_request_status: 'rejected' } });
-        
-        const totalCatalogEntries = await FishPredictions.count({ 
-            where: { namaIkan: { [Op.ne]: null } } 
+
+        const totalCatalogEntries = await FishPredictions.count({
+            where: { namaIkan: { [Op.ne]: null } }
         });
         const totalPredictions = await FishPredictions.count();
 
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
-        
+
         const recentRequests = await Users.count({
             where: {
                 catalog_request_date: { [Op.gte]: weekAgo }
@@ -446,6 +579,7 @@ export const getCatalogStatistics = async (req, res) => {
     }
 };
 
+// ⭐ UPDATED: Admin approve catalog request WITH EMAIL
 export const approveCatalogRequest = async (req, res) => {
     try {
         const adminId = req.adminId;
@@ -483,6 +617,21 @@ export const approveCatalogRequest = async (req, res) => {
 
         console.log(`✅ Catalog request approved for user: ${user.name} by admin: ${admin.name}`);
 
+        // ⭐ SEND APPROVAL EMAIL
+        try {
+            console.log('📧 Sending approval email to:', user.email);
+            const emailResult = await sendCatalogApprovedEmail(user.email, user.name);
+
+            if (emailResult.success) {
+                console.log('✅ Approval email sent successfully:', emailResult.messageId);
+            } else {
+                console.log('⚠️ Failed to send approval email');
+            }
+        } catch (emailError) {
+            console.error('⚠️ Error sending approval email:', emailError.message);
+            // Don't fail the whole approval process if email fails
+        }
+
         res.status(200).json({
             msg: `Request catalog access untuk ${user.name} berhasil disetujui`,
             data: {
@@ -491,7 +640,8 @@ export const approveCatalogRequest = async (req, res) => {
                 user_email: user.email,
                 new_role: 'contributor',
                 approved_by: admin.name,
-                approved_date: new Date()
+                approved_date: new Date(),
+                email_sent: true // Indicate email was attempted
             }
         });
 
@@ -501,7 +651,7 @@ export const approveCatalogRequest = async (req, res) => {
     }
 };
 
-// ⭐ ADMIN: Reject catalog request
+// ⭐ UPDATED: Admin reject catalog request WITH EMAIL
 export const rejectCatalogRequest = async (req, res) => {
     try {
         const adminId = req.adminId;
@@ -545,6 +695,21 @@ export const rejectCatalogRequest = async (req, res) => {
 
         console.log(`❌ Catalog request rejected for user: ${user.name} by admin: ${admin.name}`);
 
+        // ⭐ SEND REJECTION EMAIL
+        try {
+            console.log('📧 Sending rejection email to:', user.email);
+            const emailResult = await sendCatalogRejectedEmail(user.email, user.name, rejection_reason);
+
+            if (emailResult.success) {
+                console.log('✅ Rejection email sent successfully:', emailResult.messageId);
+            } else {
+                console.log('⚠️ Failed to send rejection email');
+            }
+        } catch (emailError) {
+            console.error('⚠️ Error sending rejection email:', emailError.message);
+            // Don't fail the whole rejection process if email fails
+        }
+
         res.status(200).json({
             msg: `Request catalog access untuk ${user.name} ditolak`,
             data: {
@@ -553,7 +718,8 @@ export const rejectCatalogRequest = async (req, res) => {
                 user_email: user.email,
                 rejection_reason: rejection_reason,
                 rejected_by: admin.name,
-                rejected_date: new Date()
+                rejected_date: new Date(),
+                email_sent: true // Indicate email was attempted
             }
         });
 
@@ -561,4 +727,42 @@ export const rejectCatalogRequest = async (req, res) => {
         console.error('Error rejecting catalog request:', error);
         res.status(500).json({ msg: "Server error" });
     }
+
+
 };
+
+export const uploadKTP = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ msg: "File KTP harus diupload" });
+    }
+
+    // Tambah validasi tipe file
+    if (!file.mimetype.startsWith('image/')) {
+      return res.status(400).json({ msg: "File harus berupa gambar (jpg/png)" });
+    }
+
+    const user = await Users.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ msg: "User tidak ditemukan" });
+    }
+
+    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+    await user.update({
+      ktp_image_path: file.path,
+      ktp_image_url: `${baseUrl}/uploads/${file.filename}`
+    });
+
+    res.status(200).json({
+      msg: "KTP berhasil diupload",
+      ktpUrl: user.ktp_image_url
+    });
+  } catch (error) {
+    console.error('Error uploading KTP:', error);
+    res.status(500).json({ msg: "Server error" });
+  }
+};
+

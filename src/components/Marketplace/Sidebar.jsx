@@ -1,7 +1,7 @@
 // src/components/Marketplace/Sidebar.jsx
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { User, History, ShoppingBag } from 'lucide-react';
+import { User, History, ShoppingBag, Plus } from 'lucide-react';
 
 function Sidebar() {
   const navigate = useNavigate();
@@ -11,7 +11,7 @@ function Sidebar() {
   function getActiveItemFromPath(pathname) {
     if (pathname.includes('profile') || pathname.includes('profil')) return 'profile';
     if (pathname.includes('history')) return 'history';
-     if (pathname.includes('katalog/daftar')) return 'marketplace'; // ⭐ TAMBAH ini
+    if (pathname.includes('katalog/daftar')) return 'catalog-register';
     if (pathname.includes('marketplace')) return 'marketplace';
     return 'marketplace';
   }
@@ -33,9 +33,14 @@ function Sidebar() {
       id: 'marketplace',
       icon: <ShoppingBag size={20} />,
       label: 'Marketplace',
-      path: '/katalog/daftar'
+      path: '/marketplace'
     },
-    
+    {
+      id: 'catalog-register',
+      icon: <Plus size={20} />,
+      label: 'Daftar Katalog',
+      path: '/katalog/daftar'
+    }
   ];
 
   const handleItemClick = (id, path) => {

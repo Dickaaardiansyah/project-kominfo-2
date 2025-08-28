@@ -19,6 +19,12 @@ import AddKatalogPage from "../pages/AddKatalogPage";
 // Admin Pages
 import Dashboard from "../pages/admin/Dashboard";
 import AdminLogin from "../pages/admin/Login";
+import PendingVerification from "../pages/admin/PendingVerification";
+import Approved from "../pages/admin/Approved";
+import Rejected from "../pages/admin/Rejected";
+import FishSellers from "../pages/admin/FishSellers";
+import Reports from "../pages/admin/Reports";
+import Settings from "../pages/admin/Settings";
 
 export function AppRoutes() {
   return (
@@ -45,7 +51,7 @@ export function AppRoutes() {
           <Route path="/marketplace" element={<Marketplace/>} />
           <Route path="/katalog/tambah" element={<AddKatalogPage />} />
           
-          {/* ⭐ NEW: Route untuk direct catalog registration */}
+          {/* Route untuk direct catalog registration */}
           <Route 
             path="/katalog/daftar" 
             element={
@@ -55,6 +61,8 @@ export function AppRoutes() {
           
           {/* Admin Routes - Protected */}
           <Route path="/admin/login" element={<AdminLogin />} />
+          
+          {/* Main Dashboard */}
           <Route 
             path="/admin/dashboard" 
             element={
@@ -64,12 +72,70 @@ export function AppRoutes() {
             } 
           />
           
-          {/* Admin routes dengan role-based access */}
+          {/* Verification Management Routes */}
+          <Route 
+            path="/admin/pending-verification" 
+            element={
+              <ProtectedAdminRoute>
+                <PendingVerification />
+              </ProtectedAdminRoute>
+            } 
+          />
+
+          <Route 
+            path="/admin/approved" 
+            element={
+              <ProtectedAdminRoute>
+                <Approved />
+              </ProtectedAdminRoute>
+            } 
+          />
+
+          <Route 
+            path="/admin/rejected" 
+            element={
+              <ProtectedAdminRoute>
+                <Rejected />
+              </ProtectedAdminRoute>
+            } 
+          />
+
+          {/* Fish Sellers Management */}
+          <Route 
+            path="/admin/fish-sellers" 
+            element={
+              <ProtectedAdminRoute>
+                <FishSellers />
+              </ProtectedAdminRoute>
+            } 
+          />
+
+          {/* Reports */}
+          <Route 
+            path="/admin/reports" 
+            element={
+              <ProtectedAdminRoute>
+                <Reports />
+              </ProtectedAdminRoute>
+            } 
+          />
+
+          {/* Settings */}
+          <Route 
+            path="/admin/settings" 
+            element={
+              <ProtectedAdminRoute>
+                <Settings />
+              </ProtectedAdminRoute>
+            } 
+          />
+          
+          {/* Admin routes dengan role-based access (jika diperlukan nanti) */}
           <Route 
             path="/admin/seller-requests" 
             element={
               <ProtectedAdminRoute requiredRole="seller_verifier">
-                <Dashboard />
+                <PendingVerification />
               </ProtectedAdminRoute>
             } 
           />
@@ -78,7 +144,7 @@ export function AppRoutes() {
             path="/admin/manage-admins" 
             element={
               <ProtectedAdminRoute requiredRole="super_admin">
-                <Dashboard />
+                <Settings />
               </ProtectedAdminRoute>
             } 
           />

@@ -106,7 +106,66 @@ const FishPredictions = db.define('katalog_fish', {
   }
 }, {
   freezeTableName: true,
-  timestamps: true
+  timestamps: true,
+  
+  // TAMBAHAN: Hooks untuk auto-populate fields
+  hooks: {
+    // Hook sebelum create (INSERT)
+    beforeCreate: (instance, options) => {
+      console.log('🔧 beforeCreate hook triggered');
+      
+      // Auto-populate namaIkan jika kosong
+      if (!instance.namaIkan && instance.predictedFishName) {
+        instance.namaIkan = instance.predictedFishName;
+        console.log(`✅ Auto-populated namaIkan: ${instance.namaIkan}`);
+      }
+      
+      // Auto-populate kategori jika kosong
+      if (!instance.kategori) {
+        // Logic untuk menentukan kategori berdasarkan consumptionSafety
+        if (instance.consumptionSafety) {
+          const safety = instance.consumptionSafety.toLowerCase();
+          if (safety.includes('aman') || safety.includes('konsumsi') || safety.includes('dimakan')) {
+            instance.kategori = 'Ikan Konsumsi';
+          } else {
+            instance.kategori = 'Ikan Hias';
+          }
+        } else {
+          instance.kategori = 'Ikan Konsumsi'; // Default
+        }
+        console.log(`✅ Auto-populated kategori: ${instance.kategori}`);
+      }
+      
+      // Auto-populate amanDikonsumsi berdasarkan consumptionSafety
+      if (instance.amanDikonsumsi === null && instance.consumptionSafety) {
+        const safety = instance.consumptionSafety.toLowerCase();
+        instance.amanDikonsumsi = safety.includes('aman') || safety.includes('konsumsi') || safety.includes('dimakan');
+        console.log(`✅ Auto-populated amanDikonsumsi: ${instance.amanDikonsumsi}`);
+      }
+    },
+    
+    // Hook sebelum update
+    beforeUpdate: (instance, options) => {
+      console.log('🔧 beforeUpdate hook triggered');
+      
+      // Jika namaIkan dihapus/dikosongkan, restore dari predictedFishName
+      if (!instance.namaIkan && instance.predictedFishName) {
+        instance.namaIkan = instance.predictedFishName;
+        console.log(`✅ Restored namaIkan from predictedFishName: ${instance.namaIkan}`);
+      }
+    },
+    
+    // Hook setelah create untuk logging
+    afterCreate: (instance, options) => {
+      console.log(`🎉 New fish prediction created:`, {
+        id: instance.id,
+        predictedFishName: instance.predictedFishName,
+        namaIkan: instance.namaIkan,
+        kategori: instance.kategori,
+        amanDikonsumsi: instance.amanDikonsumsi
+      });
+    }
+  }
 });
 
 // Relasi ke user
@@ -114,5 +173,23 @@ FishPredictions.belongsTo(Users, {
   foreignKey: 'userId',
   as: 'user'
 });
+
+// TAMBAHAN: Instance methods untuk utility
+FishPredictions.prototype.isInCatalog = function() {
+  return this.namaIkan !== null && this.namaIkan !== undefined && this.namaIkan.trim() !== '';
+};
+
+FishPredictions.prototype.getCatalogReadyData = function() {
+  return {
+    id: this.id,
+    namaIkan: this.namaIkan,
+    predictedFishName: this.predictedFishName,
+    kategori: this.kategori,
+    habitat: this.habitat,
+    amanDikonsumsi: this.amanDikonsumsi,
+    fishImage: this.fishImage,
+    contributor: this.user?.name || 'Unknown'
+  };
+};
 
 export default FishPredictions;
