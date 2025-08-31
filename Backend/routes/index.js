@@ -63,13 +63,10 @@ import {
 import multer from 'multer';
 import Users from '../models/userModel.js';
 import { Op } from 'sequelize';
-<<<<<<< HEAD
 import bcrypt from 'bcrypt'; // Tambahkan bcrypt untuk hash password
 import { saveToDataIkan } from '../controllers/Models.js';
 import { getAllDataIkan } from '../controllers/Models.js';
-=======
-import bcrypt from 'bcrypt';
->>>>>>> e611f04d62afc66de139b2a2bd3c479da52a8d75
+
 
 const router = express.Router();
 const upload = multer({
@@ -390,17 +387,16 @@ router.get('/admin/all', verifyAdminToken, requireSuperAdmin, getAllAdmins);
 router.put('/admin/:adminId/status', verifyAdminToken, requireSuperAdmin, updateAdminStatus);
 router.put('/admin/:adminId/password', verifyAdminToken, updateAdminPassword);
 
-<<<<<<< HEAD
 //dataikan
 router.post('/api/save-to-dataikan', upload.single('image'), saveToDataIkan);
 router.get('/api/data-ikan', getAllDataIkan);
 
-=======
+
 // Admin routes (perlu auth admin) - untuk mengelola galeri
 router.get('/api/galery', getAllGalery);
 router.get('/api/galery/:id', getGaleryById);
 router.post('/api/galery', verifyAdminToken, createGalery);
 router.put('/api/galery/:id', verifyAdminToken, updateGalery);
 router.delete('/api/galery/:id', verifyAdminToken, deleteGalery);
->>>>>>> e611f04d62afc66de139b2a2bd3c479da52a8d75
+
 export default router;

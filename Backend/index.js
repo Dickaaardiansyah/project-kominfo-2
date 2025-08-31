@@ -6,11 +6,8 @@ import cors from 'cors';
 // import Users from './models/userModel.js';
 // import FishPredictions from './models/fishPredictionModel.js';
 // import Admin from './models/adminModel.js';
-<<<<<<< HEAD
 // import DataIkan from './models/dataIkanModel.js';
-=======
 // import Galery from './models/galeryModels.js';
->>>>>>> e611f04d62afc66de139b2a2bd3c479da52a8d75
 import router from './routes/index.js';
 
 dotenv.config();
@@ -37,39 +34,36 @@ if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
 }
 
 try {
-    await db.authenticate();
-    console.log('Database connected...');
-    // await Users.sync();
-    // await FishPredictions.sync();
-    // await Admin.sync(); 
-<<<<<<< HEAD
-    // await DataIkan.sync();
-=======
-    // await Galery.sync();
->>>>>>> e611f04d62afc66de139b2a2bd3c479da52a8d75
+  await db.authenticate();
+  console.log('Database connected...');
+  // await Users.sync();
+  // await FishPredictions.sync();
+  // await Admin.sync(); 
+  // await DataIkan.sync();
+  // await Galery.sync();
 } catch (error) {
-    console.error('Database connection failed:', error);
+  console.error('Database connection failed:', error);
 }
 
 // CORS configuration
 app.use(cors({ 
-    credentials: true, 
-    origin: 'http://localhost:5173'
+  credentials: true, 
+  origin: 'http://localhost:5173'
 }));
 
 app.use(cookieParser()); 
 
 // UPDATE INI: Increase body parser limits untuk handle gambar base64
 app.use(express.json({ 
-    limit: '50mb',           // Increase dari default 1mb ke 50mb
-    parameterLimit: 100000,  // Increase parameter limit
-    extended: true 
+  limit: '50mb',           // Increase dari default 1mb ke 50mb
+  parameterLimit: 100000,  // Increase parameter limit
+  extended: true 
 }));
 
 app.use(express.urlencoded({ 
-    limit: '50mb',           // Increase limit untuk form data
-    parameterLimit: 100000,
-    extended: true 
+  limit: '50mb',           // Increase limit untuk form data
+  parameterLimit: 100000,
+  extended: true 
 }));
 
 // Serve static files untuk uploaded images
