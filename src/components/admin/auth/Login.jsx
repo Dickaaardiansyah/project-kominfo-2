@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAdminAuth } from './AdminAuthContext';
-import { API_ENDPOINTS, apiCall } from '../../../config/api';
 
 function AdminLogin() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated } = useAdminAuth();
+  const { login, isAuthenticated, isLoading } = useAdminAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -24,11 +23,56 @@ function AdminLogin() {
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isLoading) {
       const from = location.state?.from?.pathname || '/admin/dashboard';
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, location]);
+  }, [isAuthenticated, isLoading, navigate, location]);
+
+  // Show loading if auth is being checked
+  if (isLoading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #0891b2 0%, #0e7490 50%, #164e63 100%)',
+      }}>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.95)',
+          borderRadius: '24px',
+          padding: '48px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            border: '3px solid #e2e8f0',
+            borderTop: '3px solid #0891b2',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }} />
+          <span style={{
+            color: '#64748b',
+            fontSize: '16px',
+            fontWeight: '500'
+          }}>
+            Memeriksa status login...
+          </span>
+        </div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -47,14 +91,18 @@ function AdminLogin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
+    setSubmitting(true);
     setErrorMessage('');
     setSuccessMessage('');
 
     try {
-      // API call ke backend menggunakan config
-      const response = await apiCall(API_ENDPOINTS.ADMIN_LOGIN, {
+      // API call ke backend dengan fetch langsung
+      const response = await fetch('http://localhost:5000/admin/login', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include', // Important: Include cookies for refresh token
         body: JSON.stringify({
           email: formData.email,
           password: formData.password
@@ -67,16 +115,17 @@ function AdminLogin() {
         // Login berhasil
         setSuccessMessage('Login berhasil! Mengalihkan ke dashboard...');
         
-        // Use AuthContext login method
-        login(result.accessToken, result.admin);
+        // Use AuthContext login method - hanya kirim access token dan admin data
+        // Refresh token sudah disimpan sebagai httpOnly cookie oleh server
+        await login(result.accessToken, result.admin);
         
-        console.log('Admin logged in:', result.admin);
+        console.log('Admin logged in:', result.admin.name);
 
-        // Redirect ke dashboard atau halaman yang diminta sebelumnya
+        // Redirect ke dashboard setelah delay singkat
         setTimeout(() => {
           const from = location.state?.from?.pathname || '/admin/dashboard';
           navigate(from, { replace: true });
-        }, 1500);
+        }, 1000);
 
       } else {
         // Login gagal
@@ -87,7 +136,7 @@ function AdminLogin() {
       console.error('Login error:', error);
       setErrorMessage('Terjadi kesalahan koneksi. Silakan coba lagi.');
     } finally {
-      setIsLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -177,7 +226,7 @@ function AdminLogin() {
           Email: superadmin@fishmap.com<br />
           Password: password123
           <br />
-          <small style={{color: '#94a3b8'}}>👆 Klik untuk auto-fill</small>
+          <small style={{color: '#94a3b8'}}>Click untuk auto-fill</small>
         </div>
 
         <div className="logo-section" style={{
@@ -238,7 +287,7 @@ function AdminLogin() {
             fontSize: '14px',
             marginBottom: '24px'
           }}>
-            <strong>⚠️ Login Gagal!</strong> {errorMessage}
+            <strong>Login Gagal!</strong> {errorMessage}
           </div>
         )}
 
@@ -252,7 +301,7 @@ function AdminLogin() {
             fontSize: '14px',
             marginBottom: '24px'
           }}>
-            <strong>✅ Login Berhasil!</strong> {successMessage}
+            <strong>Login Berhasil!</strong> {successMessage}
           </div>
         )}
 
@@ -278,12 +327,19 @@ function AdminLogin() {
                 placeholder="superadmin@fishmap.com"
                 value={formData.email}
                 onChange={handleInputChange}
+                disabled={submitting}
                 required
-                style={inputStyles.base}
+                style={{
+                  ...inputStyles.base,
+                  opacity: submitting ? 0.6 : 1,
+                  cursor: submitting ? 'not-allowed' : 'text'
+                }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#0891b2';
-                  e.target.style.boxShadow = '0 0 0 4px rgba(8, 145, 178, 0.1)';
-                  e.target.style.transform = 'translateY(-1px)';
+                  if (!submitting) {
+                    e.target.style.borderColor = '#0891b2';
+                    e.target.style.boxShadow = '0 0 0 4px rgba(8, 145, 178, 0.1)';
+                    e.target.style.transform = 'translateY(-1px)';
+                  }
                 }}
                 onBlur={(e) => {
                   e.target.style.borderColor = '#e2e8f0';
@@ -331,12 +387,19 @@ function AdminLogin() {
                 placeholder="Masukkan password admin"
                 value={formData.password}
                 onChange={handleInputChange}
+                disabled={submitting}
                 required
-                style={inputStyles.base}
+                style={{
+                  ...inputStyles.base,
+                  opacity: submitting ? 0.6 : 1,
+                  cursor: submitting ? 'not-allowed' : 'text'
+                }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = '#0891b2';
-                  e.target.style.boxShadow = '0 0 0 4px rgba(8, 145, 178, 0.1)';
-                  e.target.style.transform = 'translateY(-1px)';
+                  if (!submitting) {
+                    e.target.style.borderColor = '#0891b2';
+                    e.target.style.boxShadow = '0 0 0 4px rgba(8, 145, 178, 0.1)';
+                    e.target.style.transform = 'translateY(-1px)';
+                  }
                 }}
                 onBlur={(e) => {
                   e.target.style.borderColor = '#e2e8f0';
@@ -347,6 +410,7 @@ function AdminLogin() {
               <button
                 type="button"
                 onClick={togglePasswordVisibility}
+                disabled={submitting}
                 style={{
                   position: 'absolute',
                   right: '16px',
@@ -354,14 +418,15 @@ function AdminLogin() {
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
                   padding: '4px',
                   borderRadius: '4px',
                   color: '#94a3b8',
-                  transition: 'color 0.2s ease'
+                  transition: 'color 0.2s ease',
+                  opacity: submitting ? 0.6 : 1
                 }}
-                onMouseEnter={(e) => e.target.style.color = '#0891b2'}
-                onMouseLeave={(e) => e.target.style.color = '#94a3b8'}
+                onMouseEnter={(e) => !submitting && (e.target.style.color = '#0891b2')}
+                onMouseLeave={(e) => !submitting && (e.target.style.color = '#94a3b8')}
               >
                 <svg 
                   className="input-icon password-toggle" 
@@ -386,18 +451,20 @@ function AdminLogin() {
             <button
               type="button"
               onClick={handleForgotPassword}
+              disabled={submitting}
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#0891b2',
+                color: submitting ? '#94a3b8' : '#0891b2',
                 textDecoration: 'none',
                 fontSize: '14px',
                 fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'color 0.2s ease'
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                transition: 'color 0.2s ease',
+                opacity: submitting ? 0.6 : 1
               }}
-              onMouseEnter={(e) => e.target.style.color = '#0e7490'}
-              onMouseLeave={(e) => e.target.style.color = '#0891b2'}
+              onMouseEnter={(e) => !submitting && (e.target.style.color = '#0e7490')}
+              onMouseLeave={(e) => !submitting && (e.target.style.color = '#0891b2')}
             >
               Lupa password?
             </button>
@@ -405,18 +472,18 @@ function AdminLogin() {
 
           <button 
             type="submit"
-            disabled={isLoading}
+            disabled={submitting}
             className="login-btn"
             style={{
               width: '100%',
-              background: isLoading ? '#94a3b8' : 'linear-gradient(135deg, #0891b2, #0e7490)',
+              background: submitting ? '#94a3b8' : 'linear-gradient(135deg, #0891b2, #0e7490)',
               color: 'white',
               border: 'none',
               padding: '16px 24px',
               borderRadius: '12px',
               fontSize: '16px',
               fontWeight: '600',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
+              cursor: submitting ? 'not-allowed' : 'pointer',
               transition: 'all 0.3s ease',
               position: 'relative',
               display: 'flex',
@@ -425,19 +492,19 @@ function AdminLogin() {
               gap: '8px'
             }}
             onMouseEnter={(e) => {
-              if (!isLoading) {
+              if (!submitting) {
                 e.target.style.transform = 'translateY(-2px)';
                 e.target.style.boxShadow = '0 10px 25px -5px rgba(8, 145, 178, 0.4)';
               }
             }}
             onMouseLeave={(e) => {
-              if (!isLoading) {
+              if (!submitting) {
                 e.target.style.transform = 'translateY(0)';
                 e.target.style.boxShadow = 'none';
               }
             }}
           >
-            {isLoading && (
+            {submitting && (
               <span 
                 className="spinner"
                 style={{
@@ -450,7 +517,7 @@ function AdminLogin() {
                 }}
               />
             )}
-            <span>{isLoading ? 'Memverifikasi...' : 'Masuk ke Dashboard'}</span>
+            <span>{submitting ? 'Memverifikasi...' : 'Masuk ke Dashboard'}</span>
           </button>
         </form>
 
@@ -466,7 +533,7 @@ function AdminLogin() {
             fontSize: '12px',
             fontWeight: '500'
           }}>
-            Akses Aman & Terenkripsi
+            Sesi Otomatis Berakhir Saat Tab Ditutup
           </span>
           <div style={{
             position: 'absolute',

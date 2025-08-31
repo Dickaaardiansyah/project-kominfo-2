@@ -6,7 +6,8 @@ import {
   Login,
   Logout,
   verifyOTP,
-  resendOTP
+  resendOTP,
+  getApprovedUsers 
 } from '../controllers/Users.js';
 import {
   predictTabular,
@@ -66,7 +67,6 @@ import { Op } from 'sequelize';
 import bcrypt from 'bcrypt'; // Tambahkan bcrypt untuk hash password
 import { saveToDataIkan } from '../controllers/Models.js';
 import { getAllDataIkan } from '../controllers/Models.js';
-
 
 const router = express.Router();
 const upload = multer({
@@ -391,12 +391,11 @@ router.put('/admin/:adminId/password', verifyAdminToken, updateAdminPassword);
 router.post('/api/save-to-dataikan', upload.single('image'), saveToDataIkan);
 router.get('/api/data-ikan', getAllDataIkan);
 
-
 // Admin routes (perlu auth admin) - untuk mengelola galeri
 router.get('/api/galery', getAllGalery);
 router.get('/api/galery/:id', getGaleryById);
 router.post('/api/galery', verifyAdminToken, createGalery);
 router.put('/api/galery/:id', verifyAdminToken, updateGalery);
 router.delete('/api/galery/:id', verifyAdminToken, deleteGalery);
-
+router.get('/api/admin/approved-users', verifyAdminToken, getApprovedUsers);
 export default router;

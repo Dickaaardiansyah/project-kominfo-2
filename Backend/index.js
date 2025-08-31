@@ -8,6 +8,7 @@ import cors from 'cors';
 // import Admin from './models/adminModel.js';
 // import DataIkan from './models/dataIkanModel.js';
 // import Galery from './models/galeryModels.js';
+
 import router from './routes/index.js';
 
 dotenv.config();
@@ -34,13 +35,13 @@ if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
 }
 
 try {
-  await db.authenticate();
-  console.log('Database connected...');
-  // await Users.sync();
-  // await FishPredictions.sync();
-  // await Admin.sync(); 
-  // await DataIkan.sync();
-  // await Galery.sync();
+    await db.authenticate();
+    console.log('Database connected...');
+    // await Users.sync();
+    // await FishPredictions.sync();
+    // await Admin.sync(); 
+    // await DataIkan.sync();
+    // await Galery.sync();
 } catch (error) {
   console.error('Database connection failed:', error);
 }
