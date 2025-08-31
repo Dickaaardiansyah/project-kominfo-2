@@ -668,3 +668,34 @@ export const Logout = async (req, res) => {
         res.status(500).json({ msg: "Server error" });
     }
 }
+
+export const getApprovedUsers = async (req, res) => {
+    try {
+        const approvedUsers = await Users.findAll({
+            where: {
+                catalog_request_status: 'approved'
+            },
+            attributes: [
+                'id', 'name', 'email', 'phone', 'gender', 'role',
+                'is_verified', 'catalog_request_status', 'catalog_request_date',
+                'catalog_approved_date', 'catalog_approved_by', 'createdAt'
+            ],
+            order: [['catalog_approved_date', 'DESC']]
+        });
+
+        res.status(200).json({
+            success: true,
+            msg: "Data anggota approved berhasil diambil",
+            users: approvedUsers,
+            total: approvedUsers.length
+        });
+
+    } catch (error) {
+        console.error('Error fetching approved users:', error);
+        res.status(500).json({
+            success: false,
+            msg: "Server error",
+            error: error.message
+        });
+    }
+};

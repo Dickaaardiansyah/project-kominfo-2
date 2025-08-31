@@ -6,11 +6,9 @@ import cors from 'cors';
 // import Users from './models/userModel.js';
 // import FishPredictions from './models/fishPredictionModel.js';
 // import Admin from './models/adminModel.js';
-<<<<<<< HEAD
 // import DataIkan from './models/dataIkanModel.js';
-=======
 // import Galery from './models/galeryModels.js';
->>>>>>> e611f04d62afc66de139b2a2bd3c479da52a8d75
+
 import router from './routes/index.js';
 
 dotenv.config();
@@ -42,11 +40,8 @@ try {
     // await Users.sync();
     // await FishPredictions.sync();
     // await Admin.sync(); 
-<<<<<<< HEAD
     // await DataIkan.sync();
-=======
     // await Galery.sync();
->>>>>>> e611f04d62afc66de139b2a2bd3c479da52a8d75
 } catch (error) {
     console.error('Database connection failed:', error);
 }
