@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import styles from "../../styles/admin/Dashboard.module.css";
 import Sidebar from '../admin/Sidebar';
 import Header from '../admin/Header';
+import { useAdminAuth } from './auth/AdminAuthContext'; // Import admin auth context
 
 function Anggota() {
   const [anggotaData, setAnggotaData] = useState([]);
@@ -11,59 +12,32 @@ function Anggota() {
   const [statusFilter, setStatusFilter] = useState('Semua');
   const [sortBy, setSortBy] = useState('nama');
   const [sortOrder, setSortOrder] = useState('asc');
+  
+  // ✅ PERBAIKAN: Gunakan admin auth context
+  const { isAuthenticated, getAuthHeader } = useAdminAuth();
 
   // Fetch approved users from backend
   useEffect(() => {
     const fetchApprovedUsers = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('adminToken') || sessionStorage.getItem('adminToken');
         
-        if (!token) {
-          // Fallback ke sample data jika tidak ada token
-          console.warn('Token admin tidak ditemukan, menggunakan sample data');
-          setTimeout(() => {
-            setAnggotaData([
-              {
-                id: 1,
-                nama: "Ahmad Rizky",
-                email: "ahmad.rizky@email.com",
-                telepon: "08123456789",
-                alamat: "Jl. Merdeka No. 123, Jakarta",
-                status: "Aktif",
-                tanggalDaftar: "2024-01-15",
-                tanggalApproved: "2024-01-20",
-                jenisUsaha: "Penjual Ikan Laut",
-                role: "contributor",
-                isVerified: true
-              },
-              {
-                id: 2,
-                nama: "Siti Nurhaliza",
-                email: "siti.nur@email.com",
-                telepon: "08234567890",
-                alamat: "Jl. Sudirman No. 45, Bandung",
-                status: "Aktif",
-                tanggalDaftar: "2024-01-20",
-                tanggalApproved: "2024-01-25",
-                jenisUsaha: "Penjual Ikan Air Tawar",
-                role: "contributor",
-                isVerified: true
-              }
-            ]);
-            setLoading(false);
-          }, 1000);
+        // ✅ PERBAIKAN: Cek authentication status
+        if (!isAuthenticated) {
+          console.warn('Admin tidak terautentikasi');
+          setError('Admin tidak terautentikasi. Silakan login ulang.');
+          setLoading(false);
           return;
         }
 
-        console.log('Fetching approved users with token...');
+        console.log('🔍 Fetching approved users with admin auth...');
+        
+        // ✅ PERBAIKAN: Gunakan getAuthHeader() untuk mendapatkan token yang valid
+        const headers = await getAuthHeader();
         
         const response = await fetch('http://localhost:5000/api/admin/approved-users', {
           method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+          headers: headers // Menggunakan headers dari context yang sudah include token
         });
 
         // Check if response is JSON
@@ -86,47 +60,55 @@ function Anggota() {
           nama: user.name,
           email: user.email,
           telepon: user.phone,
-          alamat: user.alamat || '-', // If alamat not available in model
+          alamat: user.alamat || '-',
           status: user.catalog_request_status === 'approved' ? 'Aktif' : 'Tidak Aktif',
           tanggalDaftar: user.createdAt ? new Date(user.createdAt).toISOString().split('T')[0] : '',
           tanggalApproved: user.catalog_approved_date ? new Date(user.catalog_approved_date).toISOString().split('T')[0] : '',
-          jenisUsaha: user.jenis_usaha || 'Penjual Ikan', // Default if not available
+          jenisUsaha: user.jenis_usaha || 'Penjual Ikan',
           role: user.role,
           isVerified: user.is_verified
         })) || [];
 
         setAnggotaData(transformedData);
         setError(null);
-        console.log('Successfully loaded', transformedData.length, 'approved users');
+        console.log('✅ Successfully loaded', transformedData.length, 'approved users');
         
       } catch (err) {
-        console.error('Error fetching approved users:', err);
+        console.error('❌ Error fetching approved users:', err);
         setError(err.message);
         
-        // Fallback ke sample data jika API error
-        console.warn('API error, using sample data as fallback');
-        setAnggotaData([
-          {
-            id: 1,
-            nama: "Sample User 1",
-            email: "sample1@email.com",
-            telepon: "08123456789",
-            alamat: "Alamat Sample 1",
-            status: "Aktif",
-            tanggalDaftar: "2024-01-15",
-            tanggalApproved: "2024-01-20",
-            jenisUsaha: "Penjual Ikan Laut",
-            role: "contributor",
-            isVerified: true
-          }
-        ]);
+        // ✅ PERBAIKAN: Hanya fallback ke sample data dalam development
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Development mode: using sample data as fallback');
+          setAnggotaData([
+            {
+              id: 1,
+              nama: "Sample User 1",
+              email: "sample1@email.com",
+              telepon: "08123456789",
+              alamat: "Alamat Sample 1",
+              status: "Aktif",
+              tanggalDaftar: "2024-01-15",
+              tanggalApproved: "2024-01-20",
+              jenisUsaha: "Penjual Ikan Laut",
+              role: "contributor",
+              isVerified: true
+            }
+          ]);
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    fetchApprovedUsers();
-  }, []);
+    // ✅ PERBAIKAN: Hanya fetch jika sudah authenticated
+    if (isAuthenticated) {
+      fetchApprovedUsers();
+    } else {
+      setLoading(false);
+      setError('Menunggu autentikasi admin...');
+    }
+  }, [isAuthenticated, getAuthHeader]); // ✅ Dependency pada authentication status
 
   // Filter dan search data
   const filteredData = useMemo(() => {
@@ -206,6 +188,35 @@ function Anggota() {
     link.click();
     document.body.removeChild(link);
   };
+
+  // ✅ PERBAIKAN: Tampilkan pesan yang lebih jelas saat tidak authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="containerAdmin">
+        <Sidebar />
+        <main className={styles.mainContent}>
+          <Header />
+          <div className={styles.verificationSection}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              height: '400px',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}>
+              <svg style={{ width: '48px', height: '48px', color: '#f59e0b' }} viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z" />
+              </svg>
+              <p style={{ color: '#f59e0b', textAlign: 'center' }}>
+                Session admin tidak valid. Silakan login ulang.
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -571,7 +582,6 @@ function Anggota() {
                             }}
                             title="Lihat Detail"
                             onClick={() => {
-                              // Handle view detail
                               console.log('View detail for user:', anggota.id);
                             }}
                           >
@@ -599,7 +609,6 @@ function Anggota() {
                             }}
                             title="Revoke Access"
                             onClick={() => {
-                              // Handle revoke access
                               if (confirm(`Yakin ingin mencabut akses katalog untuk ${anggota.nama}?`)) {
                                 console.log('Revoke access for user:', anggota.id);
                               }
@@ -658,7 +667,7 @@ function Anggota() {
       </main>
 
       {/* Add CSS for loading animation */}
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
