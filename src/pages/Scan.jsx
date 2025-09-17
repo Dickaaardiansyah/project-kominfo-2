@@ -15,7 +15,6 @@ function Scan() {
       <ScanHero />
       <ScanUpload />
       <Contact />
-      <Footer />
     </div>
   );
 }

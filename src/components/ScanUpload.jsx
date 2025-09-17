@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getCurrentUser } from '../data/userLogin'; // Import cookie-based auth function
 
 function ScanUpload() {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -11,10 +12,11 @@ function ScanUpload() {
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   
-  // ⭐ Permission system states
+  // Permission system states
   const [userStatus, setUserStatus] = useState(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [isRequestingAccess, setIsRequestingAccess] = useState(false);
+  const [user, setUser] = useState(null);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -22,15 +24,21 @@ function ScanUpload() {
 
   const API_BASE_URL = 'http://localhost:5000';
 
-  // ⭐ Check user catalog access status
+  // Check user login status and catalog access
   useEffect(() => {
     checkUserCatalogStatus();
   }, []);
 
   const checkUserCatalogStatus = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
+      setIsCheckingStatus(true);
+      
+      // First, get user data from cookies
+      const userResult = await getCurrentUser();
+      
+      if (!userResult.success) {
+        // User not logged in
+        setUser(null);
         setUserStatus({ 
           can_access_catalog: false, 
           role: 'guest',
@@ -41,10 +49,13 @@ function ScanUpload() {
         return;
       }
 
+      setUser(userResult.user);
+
+      // Check catalog access status
       const response = await fetch(`${API_BASE_URL}/api/catalog/my-status`, {
         method: 'GET',
+        credentials: 'include', // Use cookies for authentication
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -66,21 +77,21 @@ function ScanUpload() {
       console.error('Error checking user status:', error);
       setUserStatus({ 
         can_access_catalog: false, 
-        role: 'user',
+        role: user ? 'user' : 'guest',
         request_status: 'none',
-        is_email_verified: true 
+        is_email_verified: user ? true : false 
       });
     } finally {
       setIsCheckingStatus(false);
     }
   };
 
-  // ⭐ Request catalog access (redirect ke halaman daftar katalog)
+  // Request catalog access (redirect ke halaman daftar katalog)
   const requestCatalogAccess = () => {
     navigate('/katalog/daftar');
   };
 
-  // ⭐ Show success toast notification
+  // Show success toast notification
   const showSuccessToast = (message) => {
     const toast = document.createElement('div');
     toast.innerHTML = `
@@ -220,6 +231,7 @@ function ScanUpload() {
       const response = await fetch(`${API_BASE_URL}/predict-image`, {
         method: 'POST',
         mode: 'cors',
+        credentials: 'include', // Include cookies
         body: formData,
       });
 
@@ -255,7 +267,7 @@ function ScanUpload() {
     }
   };
 
-  // ⭐ Save to database data_ikan (for button Simpan)
+  // Save to database data_ikan (for button Simpan)
   const saveToDatabase = async () => {
     if (!analysisResult || !selectedImage) {
       alert('Tidak ada data untuk disimpan');
@@ -282,6 +294,7 @@ function ScanUpload() {
       const response = await fetch(`${API_BASE_URL}/api/save-to-dataikan`, {
         method: 'POST',
         mode: 'cors',
+        credentials: 'include', // Use cookies for authentication
         body: formData
       });
 
@@ -306,7 +319,7 @@ function ScanUpload() {
     }
   };
 
-  // Navigate to AddKatalog page with data
+  // Navigate to AddKatalog page with data (using navigate state instead of localStorage)
   const goToAddKatalog = () => {
     if (!analysisResult || !selectedImage) {
       alert('Tidak ada data hasil analisis');
@@ -327,8 +340,10 @@ function ScanUpload() {
       originalImageFile: imageFile
     };
 
-    localStorage.setItem('pendingCatalogData', JSON.stringify(catalogData));
-    navigate('/katalog/tambah');
+    // Use navigate state instead of localStorage to pass data
+    navigate('/katalog/tambah', { 
+      state: { catalogData } 
+    });
   };
 
   // Reset scan
@@ -342,7 +357,7 @@ function ScanUpload() {
     stopCamera();
   };
 
-  // ⭐ Render permission info
+  // Render permission info
   const renderPermissionInfo = () => {
     if (isCheckingStatus) {
       return (
@@ -377,7 +392,7 @@ function ScanUpload() {
       return (
         <div className="permission-info success">
           <i className="fas fa-check-circle"></i>
-          <span>✨ Anda dapat menambahkan hasil scan ke katalog publik</span>
+          <span>Anda dapat menambahkan hasil scan ke katalog publik</span>
         </div>
       );
     }
@@ -389,7 +404,7 @@ function ScanUpload() {
         <div className="permission-info pending">
           <i className="fas fa-clock"></i>
           <span>
-            📨 Request akses katalog sedang direview admin 
+            Request akses katalog sedang direview admin 
             {daysWaiting > 0 && ` (${daysWaiting} hari yang lalu)`}
           </span>
         </div>
@@ -400,7 +415,7 @@ function ScanUpload() {
       return (
         <div className="permission-info rejected">
           <i className="fas fa-times-circle"></i>
-          <span>❌ Request akses katalog ditolak. Alasan: {userStatus.rejection_reason}</span>
+          <span>Request akses katalog ditolak. Alasan: {userStatus.rejection_reason}</span>
         </div>
       );
     }
@@ -413,7 +428,7 @@ function ScanUpload() {
     );
   };
 
-  // ⭐ Render catalog button
+  // Render catalog button
   const renderCatalogButton = () => {
     if (isCheckingStatus || !userStatus) return null;
 
@@ -525,7 +540,7 @@ function ScanUpload() {
 
       {selectedImage && (
         <div className="result-container">
-                    <div className="image-preview">
+          <div className="image-preview">
             <img src={selectedImage} alt="Preview" className="preview-image" />
           </div>
 
@@ -614,9 +629,105 @@ function ScanUpload() {
           )}
         </div>
       )}
+
+      <style jsx>{`
+        .permission-info {
+          padding: 12px 16px;
+          margin: 16px 0;
+          border-radius: 8px;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .permission-info.checking {
+          background-color: #f3f4f6;
+          color: #374151;
+          border: 1px solid #d1d5db;
+        }
+        
+        .permission-info.guest {
+          background-color: #eff6ff;
+          color: #1e40af;
+          border: 1px solid #3b82f6;
+        }
+        
+        .permission-info.warning {
+          background-color: #fffbeb;
+          color: #92400e;
+          border: 1px solid #f59e0b;
+        }
+        
+        .permission-info.success {
+          background-color: #f0fdf4;
+          color: #15803d;
+          border: 1px solid #22c55e;
+        }
+        
+        .permission-info.pending {
+          background-color: #fefce8;
+          color: #a16207;
+          border: 1px solid #eab308;
+        }
+        
+        .permission-info.rejected {
+          background-color: #fef2f2;
+          color: #dc2626;
+          border: 1px solid #ef4444;
+        }
+        
+        .permission-info.info {
+          background-color: #f0f9ff;
+          color: #1e40af;
+          border: 1px solid #60a5fa;
+        }
+        
+        .login-button,
+        .catalog-button,
+        .request-access-button {
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: white;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 180px;
+          justify-content: center;
+        }
+        
+        .catalog-button.disabled {
+          background: #9ca3af;
+          cursor: not-allowed;
+        }
+        
+        .catalog-button.pending {
+          background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+        
+        .catalog-button.rejected {
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+        
+        .request-access-button {
+          background: linear-gradient(135deg, #10b981, #059669);
+        }
+        
+        .login-button:hover,
+        .catalog-button:not(.disabled):hover,
+        .request-access-button:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+      `}</style>
     </div>
   );
 }
 
 export default ScanUpload;
-

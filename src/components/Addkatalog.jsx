@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import '../styles/addKatalog.css'; // Import CSS untuk styling
 
 function AddKatalog() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [formData, setFormData] = useState({
     namaIkan: '',
     kategori: '',
@@ -16,20 +17,45 @@ function AddKatalog() {
 
   // State untuk data AI hasil scan
   const [scanData, setScanData] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   // Load data dari hasil scan saat komponen dimount
   useEffect(() => {
+    // Priority 1: Data dari navigation state (dari ScanUpload)
+    if (location.state?.catalogData) {
+      const catalogData = location.state.catalogData;
+      console.log('📥 Received catalog data from navigation:', catalogData);
+      
+      setScanData(catalogData);
+      
+      // Pre-fill form dengan data dari hasil scan
+      setFormData({
+        namaIkan: catalogData.namaIkan || catalogData.predictedFishName || '',
+        kategori: catalogData.kategori || 'Ikan Konsumsi',
+        habitat: catalogData.habitat || 'Air Asin (Laut)',
+        deskripsiTambahan: '',
+        tanggalDitemukan: '',
+        lokasiPenangkapan: '',
+        kondisi: 'mati'
+      });
+
+      return;
+    }
+
+    // Priority 2: Fallback ke localStorage (untuk backward compatibility)
     const pendingData = localStorage.getItem('pendingCatalogData');
     if (pendingData) {
       try {
         const parsedData = JSON.parse(pendingData);
+        console.log('📥 Received catalog data from localStorage:', parsedData);
+        
         setScanData(parsedData);
         
         // Pre-fill form dengan data dari hasil scan
         setFormData({
-          namaIkan: parsedData.namaIkan || '',
-          kategori: parsedData.kategori || '',
-          habitat: parsedData.habitat || '',
+          namaIkan: parsedData.namaIkan || parsedData.predictedFishName || '',
+          kategori: parsedData.kategori || 'Ikan Konsumsi',
+          habitat: parsedData.habitat || 'Air Asin (Laut)',
           deskripsiTambahan: '',
           tanggalDitemukan: '',
           lokasiPenangkapan: '',
@@ -42,7 +68,14 @@ function AddKatalog() {
         console.error('Error parsing scan data:', error);
       }
     }
-  }, []);
+
+    // Priority 3: Jika tidak ada data, redirect kembali ke scan
+    if (!location.state?.catalogData && !pendingData) {
+      console.warn('⚠️ No scan data found, redirecting to scan page');
+      alert('Tidak ada data scan yang ditemukan. Silakan scan ikan terlebih dahulu.');
+      navigate('/scan');
+    }
+  }, [location.state, navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -61,8 +94,16 @@ function AddKatalog() {
       return;
     }
 
-    console.log('Submit data with scan data:', scanData);
+    if (!scanData) {
+      alert('Data scan tidak ditemukan. Silakan scan ulang.');
+      return;
+    }
+
+    console.log('🚀 Submit data with scan data:', scanData);
+    console.log('📝 Form data:', formData);
     
+    setLoading(true);
+
     try {
       // Siapkan FormData untuk mengirim file dan data
       const submitFormData = new FormData();
@@ -76,66 +117,75 @@ function AddKatalog() {
       submitFormData.append('top_predictions', JSON.stringify([
         { class: formData.namaIkan, confidence: scanData?.aiAccuracy || 0.95 }
       ]));
-      submitFormData.append('notes', `CATALOG ITEM - ${formData.deskripsiTambahan || ''} | Lokasi: ${formData.lokasiPenangkapan || '-'} | Tanggal: ${formData.tanggalDitemukan || '-'} | Kondisi: ${formData.kondisi}`);
-      submitFormData.append('userId', localStorage.getItem('userId') || '1');
       
-      // PENTING: Tambahkan gambar base64 langsung ke FormData
+      // Format notes dengan informasi lengkap
+      const notes = [
+        `CATALOG ITEM - ${formData.deskripsiTambahan || ''}`,
+        `Lokasi: ${formData.lokasiPenangkapan || '-'}`,
+        `Tanggal: ${formData.tanggalDitemukan || '-'}`,
+        `Kondisi: ${formData.kondisi}`,
+        `Scan Timestamp: ${scanData?.scanTimestamp || new Date().toISOString()}`
+      ].join(' | ');
+      
+      submitFormData.append('notes', notes);
+
+      // Tambahkan gambar dari scan data
       if (scanData?.fishImage) {
-        console.log('Adding image data to FormData...');
+        console.log('🖼️ Adding image data to FormData...');
         
-        // Convert base64 data URL ke blob untuk upload
-        const response = await fetch(scanData.fishImage);
-        const blob = await response.blob();
-        
-        // Tambahkan sebagai file ke FormData
-        submitFormData.append('image', blob, 'catalog-image.jpg');
-        
-        console.log('Image added to FormData successfully');
+        try {
+          // Convert base64 data URL ke blob untuk upload
+          const response = await fetch(scanData.fishImage);
+          const blob = await response.blob();
+          
+          // Tambahkan sebagai file ke FormData
+          submitFormData.append('image', blob, 'catalog-image.jpg');
+          
+          console.log('✅ Image added to FormData successfully');
+        } catch (imageError) {
+          console.error('❌ Error processing image:', imageError);
+          throw new Error('Gagal memproses gambar dari hasil scan');
+        }
       } else {
-        console.warn('No image data available from scan');
+        console.warn('⚠️ No image data available from scan');
+        throw new Error('Tidak ada gambar dari hasil scan yang tersedia');
       }
 
-      console.log('Sending FormData to /api/save-to-catalog...');
+      console.log('📤 Sending FormData to /api/save-to-catalog...');
       
-      // Kirim sebagai FormData (bukan JSON)
+      // Kirim sebagai FormData dengan HTTP-only cookies
       const response = await fetch('http://localhost:5000/api/save-to-catalog', {
         method: 'POST',
-        // JANGAN set Content-Type untuk FormData, biarkan browser yang set
-        headers: {
-          // Tambahkan authorization header jika ada token
-          ...(localStorage.getItem('token') && {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          })
-        },
+        credentials: 'include', // Use HTTP-only cookies for authentication
         body: submitFormData // FormData, bukan JSON
       });
 
-      console.log('Response status:', response.status);
+      console.log('📨 Response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response:', errorText);
+        console.error('❌ Error response:', errorText);
         throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('Save response:', result);
+      console.log('✅ Save response:', result);
 
       if (result.success || result.status === 'success') {
-        alert('Data berhasil ditambahkan ke katalog!');
+        alert('🎉 Data berhasil ditambahkan ke katalog!');
         
-        // Kembali ke halaman sebelumnya
-        navigate(-1);
+        // Kembali ke halaman scan atau catalog list
+        navigate('/scan');
       } else {
         throw new Error(result.message || 'Gagal menyimpan data');
       }
       
     } catch (error) {
-      console.error('Error saving catalog:', error);
+      console.error('❌ Error saving catalog:', error);
       
       // Handle different types of errors
       if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        alert('Gagal terhubung ke server. Pastikan server API berjalan di localhost:5000');
+        alert('🚫 Gagal terhubung ke server. Pastikan server API berjalan di localhost:5000');
         
         // Fallback ke localStorage jika API gagal
         try {
@@ -145,26 +195,78 @@ function AddKatalog() {
             fish_name: formData.namaIkan,
             image: scanData?.fishImage,
             createdAt: new Date().toISOString(),
-            local_save: true
+            local_save: true,
+            form_data: formData
           };
           existingCatalog.push(newEntry);
           localStorage.setItem('fishCatalog', JSON.stringify(existingCatalog));
-          alert('Server tidak tersedia. Data disimpan secara lokal!');
-          navigate(-1);
+          alert('💾 Server tidak tersedia. Data disimpan secara lokal!');
+          navigate('/scan');
         } catch (localError) {
-          console.error('Error saving to localStorage:', localError);
-          alert('Gagal menyimpan data baik ke server maupun lokal');
+          console.error('❌ Error saving to localStorage:', localError);
+          alert('🚫 Gagal menyimpan data baik ke server maupun lokal');
         }
       } else {
-        alert('Gagal menyimpan data: ' + error.message);
+        alert('❌ Gagal menyimpan data: ' + error.message);
       }
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleCancel = () => {
-    // Kembali ke halaman sebelumnya
-    navigate(-1);
+    // Kembali ke halaman scan
+    navigate('/scan');
   };
+
+  // Show loading state while processing
+  if (loading) {
+    return (
+      <div className="add-katalog-container">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <h2>Menyimpan ke Katalog...</h2>
+          <p>Mohon tunggu, data sedang diproses dan disimpan ke server.</p>
+        </div>
+        
+        <style jsx>{`
+          .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 60vh;
+            text-align: center;
+          }
+          
+          .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+          }
+          
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          
+          .loading-container h2 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+          }
+          
+          .loading-container p {
+            color: #7f8c8d;
+            font-size: 14px;
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="add-katalog-container">
@@ -192,21 +294,21 @@ function AddKatalog() {
             <div className="analysis-item">
               <span className="analysis-label">Nama Ikan</span>
               <span className="analysis-value">
-                {scanData?.predictedFishName || 'Ikan Tongkol'}
+                {scanData?.predictedFishName || scanData?.namaIkan || formData.namaIkan || 'Ikan Tongkol'}
               </span>
             </div>
             
             <div className="analysis-item">
               <span className="analysis-label">Kategori</span>
               <span className="analysis-value">
-                {formData.kategori || 'Ikan Konsumsi'}
+                {formData.kategori || scanData?.kategori || 'Ikan Konsumsi'}
               </span>
             </div>
             
             <div className="analysis-item">
               <span className="analysis-label">Habitat</span>
               <span className="analysis-value">
-                {formData.habitat || 'Air Asin (Laut)'}
+                {formData.habitat || scanData?.habitat || 'Air Asin (Laut)'}
               </span>
             </div>
             
@@ -229,6 +331,11 @@ function AddKatalog() {
               }}>
                 <i className="fas fa-info-circle" style={{ marginRight: '5px' }}></i>
                 Data diambil dari hasil scan AI
+                {scanData.scanTimestamp && (
+                  <div style={{ marginTop: '5px', fontSize: '11px', opacity: 0.8 }}>
+                    Scan: {new Date(scanData.scanTimestamp).toLocaleString()}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -237,7 +344,7 @@ function AddKatalog() {
         {/* Catalog Panel */}
         <div className="catalog-panel">
           <h2 className="catalog-title">
-            📁 Tambahkan ke Katalog
+            📝 Tambahkan ke Katalog
           </h2>
           <p className="catalog-subtitle">
             Lengkapi informasi ikan untuk menyimpannya ke katalog. 
@@ -250,7 +357,7 @@ function AddKatalog() {
             <div className="form-group">
               <label className="form-label">
                 <span className="label-icon green"></span>
-                Nama Ikan
+                Nama Ikan *
               </label>
               <input 
                 type="text" 
@@ -267,7 +374,7 @@ function AddKatalog() {
             <div className="form-group">
               <label className="form-label">
                 <span className="label-icon purple"></span>
-                Kategori
+                Kategori *
               </label>
               <select 
                 name="kategori"
@@ -288,7 +395,7 @@ function AddKatalog() {
             <div className="form-group">
               <label className="form-label">
                 <span className="label-icon blue"></span>
-                Habitat
+                Habitat *
               </label>
               <select 
                 name="habitat"
@@ -407,19 +514,51 @@ function AddKatalog() {
                 type="button" 
                 onClick={handleCancel}
                 className="btn btn-cancel"
+                disabled={loading}
               >
                 ❌ Batal
               </button>
               <button 
                 type="submit"
                 className="btn btn-save"
+                disabled={loading}
               >
-                💾 Simpan ke Katalog
+                {loading ? (
+                  <>
+                    <span className="loading-spinner-small"></span>
+                    Menyimpan...
+                  </>
+                ) : (
+                  <>💾 Simpan ke Katalog</>
+                )}
               </button>
             </div>
           </form>
         </div>
       </div>
+      
+      <style jsx>{`
+        .loading-spinner-small {
+          display: inline-block;
+          width: 16px;
+          height: 16px;
+          border: 2px solid transparent;
+          border-top: 2px solid currentColor;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-right: 8px;
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+      `}</style>
     </div>
   );
 }

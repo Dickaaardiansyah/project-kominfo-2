@@ -19,7 +19,7 @@ export const getUsers = async (req, res) => {
         const user = await Users.findOne({
             where: { id: userId },
             attributes: [
-                'id', 'name', 'email', 'phone', 'gender', 'role', 
+                'id', 'name', 'email', 'phone', 'gender', 'role',
                 'is_verified', 'catalog_request_status', 'catalog_request_date',
                 'catalog_approved_date', 'catalog_rejection_reason'
             ]
@@ -189,7 +189,7 @@ export const getUserPredictions = async (req, res) => {
 
         // Build where condition
         const whereCondition = { userId };
-        
+
         if (in_catalog_only === 'true') {
             whereCondition.namaIkan = { [Op.ne]: null };
         }
@@ -199,7 +199,7 @@ export const getUserPredictions = async (req, res) => {
             attributes: [
                 'id', 'predictedFishName', 'namaIkan', 'kategori', 'probability',
                 'habitat', 'consumptionSafety', 'fishImage', 'predictionDate',
-                'lokasiPenangkapan', 'tanggalDitemukan', 'kondisiIkan', 
+                'lokasiPenangkapan', 'tanggalDitemukan', 'kondisiIkan',
                 'amanDikonsumsi', 'createdAt'
             ],
             order: [['createdAt', 'DESC']],
@@ -297,10 +297,10 @@ export const Register = async (req, res) => {
             console.log('OTP email sent successfully to:', email);
         } catch (emailError) {
             console.error('Failed to send OTP email:', emailError);
-            
+
             // Jika email gagal, hapus user yang baru dibuat
             await Users.destroy({ where: { id: newUser.id } });
-            
+
             return res.status(500).json({
                 msg: "Gagal mengirim email verifikasi. Silakan coba lagi.",
                 debug: process.env.NODE_ENV === 'development' ? emailError.message : undefined
@@ -548,31 +548,14 @@ export const Login = async (req, res) => {
             return res.status(404).json({ msg: "Email tidak ditemukan" });
         }
 
-        // ⭐ CHECK: Email verification status
+        // CHECK: Email verification status
         console.log('🔍 Login attempt for user:', {
             email: user.email,
             is_verified: user.is_verified,
             email_verified_at: user.email_verified_at
         });
 
-        // ⭐ OPTIONAL: Block login if not verified (uncomment if you want to enforce)
-        /*
-        if (!user.is_verified) {
-            return res.status(403).json({ 
-                msg: "Email belum diverifikasi. Silakan verifikasi email terlebih dahulu.",
-                need_verification: true,
-                email: user.email
-            });
-        }
-        */
-
-        // Cocokkan password
-        const match = await bcrypt.compare(password, user.password);
-        if (!match) {
-            return res.status(400).json({ msg: "Password salah" });
-        }
-
-        // ⭐ AUTO-FIX: If user can login but not verified, auto-verify them
+        // AUTO-FIX: If user can login but not verified, auto-verify them
         if (!user.is_verified) {
             console.log('🔧 Auto-verifying user who can login:', user.email);
             await user.update({
@@ -582,23 +565,29 @@ export const Login = async (req, res) => {
             console.log('✅ User auto-verified:', user.email);
         }
 
+        // Cocokkan password
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) {
+            return res.status(400).json({ msg: "Password salah" });
+        }
+
         // Ambil data yang dibutuhkan untuk token
         const userId = user.id;
         const name = user.name;
         const userEmail = user.email;
 
-        // Buat access token
+        // Buat access token (shorter expiry for cookies)
         const accessToken = jwt.sign(
             { userId, name, email: userEmail },
             process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: '1h' }
+            { expiresIn: '15m' } // Shorter expiry for security
         );
 
         // Buat refresh token
         const refreshToken = jwt.sign(
             { userId, name, email: userEmail },
             process.env.REFRESH_TOKEN_SECRET,
-            { expiresIn: '1d' }
+            { expiresIn: '7d' } // Longer expiry for refresh
         );
 
         // Simpan refresh token di database
@@ -607,23 +596,31 @@ export const Login = async (req, res) => {
             { where: { id: userId } }
         );
 
-        // Set refresh token ke cookie
+        // Set access token ke HTTP-only cookie
+        res.cookie('accessToken', accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict',
+            maxAge: 15 * 60 * 1000 // 15 menit
+        });
+
+        // Set refresh token ke HTTP-only cookie
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'Strict',
-            maxAge: 24 * 60 * 60 * 1000 // 1 hari
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 hari
         });
 
-        // ⭐ INCLUDE: Email verification status in response
+        // INCLUDE: Email verification status in response
         res.status(200).json({
             msg: "Login berhasil",
-            accessToken,
+            accessToken, // Still send in response for immediate use, but also in cookie
             user: {
                 id: userId,
                 name,
                 email: userEmail,
-                is_verified: true, // ⭐ Always true after auto-fix
+                is_verified: true, // Always true after auto-fix
                 role: user.role || 'user'
             }
         });
@@ -634,40 +631,47 @@ export const Login = async (req, res) => {
     }
 };
 
-
-
 export const Logout = async (req, res) => {
     const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) return res.sendStatus(204); // No Content
 
     try {
-        // ✅ Fix 1: Gunakan Users dan findOne()
-        const user = await Users.findOne({
-            where: {
-                refresh_token: refreshToken
+        if (refreshToken) {
+            // Find user and clear refresh token from database
+            const user = await Users.findOne({
+                where: { refresh_token: refreshToken }
+            });
+
+            if (user) {
+                await Users.update(
+                    { refresh_token: null },
+                    { where: { id: user.id } }
+                );
             }
+        }
+
+        // Clear both cookies
+        res.clearCookie('accessToken', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict'
         });
 
-        // ✅ Fix 2: Cek user dengan benar
-        if (!user) return res.sendStatus(204);
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'Strict'
+        });
 
-        // ✅ Fix 3: Langsung akses user.id (tanpa [0])
-        const userId = user.id;
-
-        // ✅ Fix 4: Gunakan Users konsisten
-        await Users.update(
-            { refresh_token: null },
-            { where: { id: userId } }
-        );
-
-        res.clearCookie('refreshToken');
         res.json({ msg: "Logout berhasil" });
 
     } catch (error) {
         console.error('Logout error:', error);
-        res.status(500).json({ msg: "Server error" });
+        // Still clear cookies even if database operation fails
+        res.clearCookie('accessToken');
+        res.clearCookie('refreshToken');
+        res.status(500).json({ msg: "Server error, but cookies cleared" });
     }
-}
+};
 
 export const getApprovedUsers = async (req, res) => {
     try {

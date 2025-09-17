@@ -27,10 +27,27 @@ export const refreshToken = async (req, res) => {
             const accessToken = jwt.sign(
                 { userId, name, email },
                 process.env.ACCESS_TOKEN_SECRET,
-                { expiresIn: '15m' } // Konsisten dengan login (15 menit)
+                { expiresIn: '15m' } // Consistent with login (15 minutes)
             );
 
-            res.json({ accessToken });
+            // Set new access token as HTTP-only cookie
+            res.cookie('accessToken', accessToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'Strict',
+                maxAge: 15 * 60 * 1000 // 15 minutes
+            });
+
+            // Also return in response for immediate use
+            res.json({ 
+                accessToken,
+                user: {
+                    id: userId,
+                    name,
+                    email,
+                    role: user.role || 'user'
+                }
+            });
         });
     } catch (error) {
         console.error('Kesalahan refresh token:', error);

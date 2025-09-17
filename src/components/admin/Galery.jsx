@@ -3,6 +3,7 @@ import styles from "../../styles/admin/Dashboard.module.css";
 import Sidebar from '../admin/Sidebar';
 import Header from '../admin/Header';
 import axios from 'axios';
+import Swal from 'sweetalert2';
 
 function Galery() {
   const [galeriData, setGaleriData] = useState([]);
@@ -21,7 +22,18 @@ function Galery() {
   // API Base URL
   const API_BASE_URL = 'http://localhost:5000/api';
 
-
+  // SweetAlert Toast Configuration
+  const Toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    didOpen: (toast) => {
+      toast.addEventListener('mouseenter', Swal.stopTimer);
+      toast.addEventListener('mouseleave', Swal.resumeTimer);
+    }
+  });
 
   // Get admin token - coba localStorage dulu, jika tidak ada gunakan refresh token
   const getAdminToken = async () => {
@@ -74,7 +86,14 @@ function Galery() {
     } catch (error) {
       console.error('Error fetching galeri data:', error);
       setGaleriData([]);
-      alert('Gagal mengambil data galeri: ' + (error.response?.data?.msg || error.message));
+      
+      // SweetAlert untuk error
+      await Swal.fire({
+        icon: 'error',
+        title: 'Gagal Memuat Data',
+        text: 'Tidak dapat memuat data galeri: ' + (error.response?.data?.msg || error.message),
+        confirmButtonColor: '#dc2626'
+      });
     } finally {
       setLoading(false);
     }
@@ -147,13 +166,23 @@ function Galery() {
     if (file) {
       // Validasi file type
       if (!file.type.startsWith('image/')) {
-        alert('File harus berupa gambar!');
+        await Swal.fire({
+          icon: 'warning',
+          title: 'File Tidak Valid',
+          text: 'File harus berupa gambar!',
+          confirmButtonColor: '#f59e0b'
+        });
         return;
       }
 
       // Validasi ukuran file (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('Ukuran file maksimal 5MB!');
+        await Swal.fire({
+          icon: 'warning',
+          title: 'File Terlalu Besar',
+          text: 'Ukuran file maksimal 5MB!',
+          confirmButtonColor: '#f59e0b'
+        });
         return;
       }
 
@@ -168,7 +197,12 @@ function Galery() {
         const sizeInMB = (compressedBase64.length * 3 / 4) / (1024 * 1024);
 
         if (sizeInMB > 10) { // Limit compressed image to 10MB
-          alert('Gambar terlalu besar setelah dikompresi. Coba gunakan gambar yang lebih kecil.');
+          await Swal.fire({
+            icon: 'error',
+            title: 'Gambar Terlalu Besar',
+            text: 'Gambar terlalu besar setelah dikompresi. Coba gunakan gambar yang lebih kecil.',
+            confirmButtonColor: '#dc2626'
+          });
           setPreviewImage('');
           return;
         }
@@ -179,9 +213,20 @@ function Galery() {
           gambar: compressedBase64
         }));
 
+        // Toast sukses
+        Toast.fire({
+          icon: 'success',
+          title: 'Gambar berhasil diunggah'
+        });
+
       } catch (error) {
         console.error('Error processing image:', error);
-        alert('Gagal memproses gambar. Coba gunakan gambar lain.');
+        await Swal.fire({
+          icon: 'error',
+          title: 'Gagal Memproses Gambar',
+          text: 'Gagal memproses gambar. Coba gunakan gambar lain.',
+          confirmButtonColor: '#dc2626'
+        });
         setPreviewImage('');
       }
     }
@@ -207,52 +252,118 @@ function Galery() {
     setIsModalOpen(true);
   };
 
-  // Handle delete
-  const handleDelete = async (id) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus item ini?')) {
+  // Handle delete dengan SweetAlert confirmation
+  const handleDelete = async (id, nama) => {
+    const result = await Swal.fire({
+      title: 'Konfirmasi Hapus',
+      html: `Apakah Anda yakin ingin menghapus gambar <strong>"${nama}"</strong>?<br><small>Tindakan ini tidak dapat dibatalkan.</small>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal',
+      reverseButtons: true
+    });
+
+    if (result.isConfirmed) {
       try {
+        // Show loading
+        Swal.fire({
+          title: 'Menghapus...',
+          text: 'Mohon tunggu sebentar',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
         const headers = await getAuthHeaders();
         await axios.delete(`${API_BASE_URL}/galery/${id}`, { headers });
 
         // Refresh data setelah delete
         await fetchGaleriData();
-        alert('Galeri berhasil dihapus');
+        
+        // Success notification
+        await Swal.fire({
+          icon: 'success',
+          title: 'Berhasil Dihapus!',
+          text: `Gambar "${nama}" telah berhasil dihapus.`,
+          confirmButtonColor: '#059669',
+          timer: 2000,
+          timerProgressBar: true
+        });
+
       } catch (error) {
         console.error('Error deleting galeri:', error);
-        alert('Gagal menghapus galeri: ' + (error.response?.data?.msg || error.message));
+        await Swal.fire({
+          icon: 'error',
+          title: 'Gagal Menghapus',
+          text: 'Gagal menghapus galeri: ' + (error.response?.data?.msg || error.message),
+          confirmButtonColor: '#dc2626'
+        });
       }
     }
   };
 
-  // Handle form submit
-  // Update handleSubmit dengan error handling yang lebih baik
+  // Handle form submit dengan SweetAlert
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     // Validasi yang lebih ketat
     if (!formData.nama || formData.nama.trim().length < 3) {
-      alert('Nama harus diisi minimal 3 karakter!');
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Nama Tidak Valid',
+        text: 'Nama harus diisi minimal 3 karakter!',
+        confirmButtonColor: '#f59e0b'
+      });
       return;
     }
 
     if (!formData.gambar) {
-      alert('Gambar harus dipilih!');
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Gambar Belum Dipilih',
+        text: 'Gambar harus dipilih!',
+        confirmButtonColor: '#f59e0b'
+      });
       return;
     }
 
     if (!formData.deskripsi || formData.deskripsi.trim().length < 10) {
-      alert('Deskripsi harus diisi minimal 10 karakter!');
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Deskripsi Tidak Valid',
+        text: 'Deskripsi harus diisi minimal 10 karakter!',
+        confirmButtonColor: '#f59e0b'
+      });
       return;
     }
 
     // Check base64 size
     const imageSizeInMB = (formData.gambar.length * 3 / 4) / (1024 * 1024);
     if (imageSizeInMB > 15) { // Limit to 15MB
-      alert('Ukuran gambar terlalu besar untuk disimpan. Coba kompres gambar atau gunakan gambar yang lebih kecil.');
+      await Swal.fire({
+        icon: 'error',
+        title: 'Gambar Terlalu Besar',
+        text: 'Ukuran gambar terlalu besar untuk disimpan. Coba kompres gambar atau gunakan gambar yang lebih kecil.',
+        confirmButtonColor: '#dc2626'
+      });
       return;
     }
 
     setSubmitting(true);
+
+    // Show loading
+    Swal.fire({
+      title: editingItem ? 'Memperbarui Galeri...' : 'Menyimpan Galeri...',
+      text: 'Mohon tunggu sebentar',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
 
     try {
       const headers = await getAuthHeaders();
@@ -271,13 +382,32 @@ function Galery() {
           headers,
           timeout: 30000 // 30 seconds timeout
         });
-        alert('Galeri berhasil diperbarui');
+        
+        // Success untuk edit
+        await Swal.fire({
+          icon: 'success',
+          title: 'Berhasil Diperbarui!',
+          text: `Galeri "${formData.nama}" telah berhasil diperbarui.`,
+          confirmButtonColor: '#059669',
+          timer: 2000,
+          timerProgressBar: true
+        });
+
       } else {
         await axios.post(`${API_BASE_URL}/galery`, dataToSend, {
           headers,
           timeout: 30000 // 30 seconds timeout
         });
-        alert('Galeri berhasil ditambahkan');
+        
+        // Success untuk create
+        await Swal.fire({
+          icon: 'success',
+          title: 'Berhasil Ditambahkan!',
+          text: `Galeri "${formData.nama}" telah berhasil ditambahkan.`,
+          confirmButtonColor: '#059669',
+          timer: 2000,
+          timerProgressBar: true
+        });
       }
 
       await fetchGaleriData();
@@ -289,12 +419,18 @@ function Galery() {
     } catch (error) {
       console.error('Error saving galeri:', error);
 
+      let errorTitle = 'Gagal Menyimpan';
+      let errorMessage = '';
+
       if (error.code === 'ECONNABORTED') {
-        alert('Timeout: Gambar terlalu besar atau koneksi lambat. Coba gunakan gambar yang lebih kecil.');
+        errorTitle = 'Timeout';
+        errorMessage = 'Gambar terlalu besar atau koneksi lambat. Coba gunakan gambar yang lebih kecil.';
       } else if (error.response?.status === 401) {
-        alert('Sesi admin expired. Silakan refresh halaman dan login ulang.');
+        errorTitle = 'Sesi Berakhir';
+        errorMessage = 'Sesi admin expired. Silakan refresh halaman dan login ulang.';
       } else if (error.response?.status === 413) {
-        alert('Gambar terlalu besar untuk server. Coba gunakan gambar yang lebih kecil.');
+        errorTitle = 'Gambar Terlalu Besar';
+        errorMessage = 'Gambar terlalu besar untuk server. Coba gunakan gambar yang lebih kecil.';
       } else if (error.response?.data?.errors) {
         // Handle validation errors dari backend
         const errorMessages = error.response.data.errors.map(err => {
@@ -302,13 +438,23 @@ function Galery() {
             return 'Ukuran gambar terlalu besar untuk database';
           }
           return `${err.field}: ${err.message}`;
-        }).join('\n');
-        alert(`Gagal menyimpan galeri:\n${errorMessages}`);
+        }).join('<br>');
+        
+        errorTitle = 'Validasi Gagal';
+        errorMessage = errorMessages;
       } else if (error.response?.status >= 500) {
-        alert('Server error. Kemungkinan gambar terlalu besar atau ada masalah server. Coba gunakan gambar yang lebih kecil.');
+        errorTitle = 'Server Error';
+        errorMessage = 'Server error. Kemungkinan gambar terlalu besar atau ada masalah server. Coba gunakan gambar yang lebih kecil.';
       } else {
-        alert('Gagal menyimpan galeri: ' + (error.response?.data?.msg || error.message));
+        errorMessage = error.response?.data?.msg || error.message;
       }
+
+      await Swal.fire({
+        icon: 'error',
+        title: errorTitle,
+        html: errorMessage,
+        confirmButtonColor: '#dc2626'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -497,7 +643,7 @@ function Galery() {
                               Edit
                             </button>
                             <button
-                              onClick={() => handleDelete(item.id)}
+                              onClick={() => handleDelete(item.id, item.nama)}
                               disabled={submitting}
                               style={{
                                 padding: '0.5rem 0.75rem',

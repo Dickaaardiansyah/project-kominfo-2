@@ -1,6 +1,7 @@
-// src/components/Navbar.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { getCurrentUser, logoutUser } from '../data/userLogin'; // Import API functions
+import logo from '../assets/sea logo.png'; // Impor gambar logo
 
 function Navbar() {
   const navigate = useNavigate();
@@ -8,51 +9,56 @@ function Navbar() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const dropdownRef = useRef(null);
 
-  // Check login status saat component mount dan saat localStorage berubah
+  // Check login status saat component mount dan listen to events
   useEffect(() => {
-    const checkLoginStatus = () => {
-      const token = localStorage.getItem('token');
-      const userData = localStorage.getItem('user');
-      
-      if (token && userData) {
-        setIsLoggedIn(true);
-        try {
-          setUser(JSON.parse(userData));
-        } catch (error) {
-          console.error('Error parsing user data:', error);
-          setUser({ name: 'User' }); // Fallback
+    const checkLoginStatus = async () => {
+      try {
+        setLoading(true);
+        const result = await getCurrentUser();
+        
+        if (result.success) {
+          setIsLoggedIn(true);
+          setUser(result.user);
+        } else {
+          setIsLoggedIn(false);
+          setUser(null);
         }
-      } else {
+      } catch (error) {
+        console.error('Error checking login status:', error);
         setIsLoggedIn(false);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
     };
 
     // Check initial status
     checkLoginStatus();
 
-    // Listen for storage changes (login/logout dari tab lain)
-    const handleStorageChange = (e) => {
-      if (e.key === 'token' || e.key === 'user') {
-        checkLoginStatus();
+    // Listen for custom login/logout events
+    const handleLoginEvent = (e) => {
+      if (e.detail?.user) {
+        setIsLoggedIn(true);
+        setUser(e.detail.user);
+      } else {
+        checkLoginStatus(); // Re-check from server
       }
     };
 
-    // Listen for custom login event
-    const handleLoginEvent = () => {
-      checkLoginStatus();
+    const handleLogoutEvent = () => {
+      setIsLoggedIn(false);
+      setUser(null);
     };
 
-    window.addEventListener('storage', handleStorageChange);
     window.addEventListener('userLoggedIn', handleLoginEvent);
-    window.addEventListener('userLoggedOut', handleLoginEvent);
+    window.addEventListener('userLoggedOut', handleLogoutEvent);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('userLoggedIn', handleLoginEvent);
-      window.removeEventListener('userLoggedOut', handleLoginEvent);
+      window.removeEventListener('userLoggedOut', handleLogoutEvent);
     };
   }, []);
 
@@ -88,26 +94,32 @@ function Navbar() {
     navigate('/profil');
   };
 
-  const handleLogoutClick = () => {
+  const handleLogoutClick = async () => {
     setShowDropdown(false);
     
-    // Clear localStorage
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    localStorage.removeItem('userId');
-    
-    // Update state
-    setIsLoggedIn(false);
-    setUser(null);
-    
-    // Trigger custom event untuk components lain
-    window.dispatchEvent(new Event('userLoggedOut'));
-    
-    // Navigate to home
-    navigate('/');
-    
-    alert('Anda telah logout');
+    try {
+      // Call logout API to clear server-side cookies
+      const result = await logoutUser();
+      
+      if (result.success) {
+        // Update state
+        setIsLoggedIn(false);
+        setUser(null);
+        
+        // Trigger custom event untuk components lain
+        window.dispatchEvent(new Event('userLoggedOut'));
+        
+        // Navigate to home
+        navigate('/');
+        
+        alert('Anda telah logout');
+      } else {
+        alert('Logout gagal, coba lagi');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      alert('Terjadi kesalahan saat logout');
+    }
   };
 
   // Close dropdown when clicking outside
@@ -129,10 +141,40 @@ function Navbar() {
     setShowDropdown(false);
   }, [location.pathname]);
 
+  // Show loading state
+  if (loading) {
+    return (
+      <nav className="navbar">
+        <div className="nav-container">
+          <div className="logo" onClick={() => navigate('/')}>
+            <img src={logo} alt="Fishmap AI" style={{ height: '40px', width: 'auto', marginRight: '8px' }} />
+            <span>Fishmap AI</span>
+          </div>
+          <ul className="nav-menu">
+            {['home', 'katalog', 'galeri', 'cuaca', 'kontak'].map((id) => (
+              <li key={id}>
+                <a href={`#${id}`} onClick={(e) => handleNavClick(e, `#${id}`)}>
+                  {id.charAt(0).toUpperCase() + id.slice(1)}
+                </a>
+              </li>
+            ))}
+          </ul>
+          
+          <div style={{ color: 'white', fontSize: '14px' }}>
+            Loading...
+          </div>
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav className="navbar">
       <div className="nav-container">
-        <div className="logo">Fishmap AI</div>
+        <div className="logo" onClick={() => navigate('/')}>
+          <img src={logo} alt="Fishmap AI" style={{ height: '40px', width: 'auto', marginRight: '8px', cursor: 'pointer' }} />
+          <span>Fishmap AI</span>
+        </div>
         <ul className="nav-menu">
           {['home', 'katalog', 'galeri', 'cuaca', 'kontak'].map((id) => (
             <li key={id}>
@@ -344,6 +386,26 @@ function Navbar() {
           background-color: #f8f9fa !important;
         }
         
+        .logo {
+          display: flex;
+          align-items: center;
+          cursor: pointer;
+        }
+        
+        .logo img {
+          height: 40px;
+          width: auto;
+          object-fit: contain;
+          margin-right: 8px;
+        }
+        
+        .logo span {
+          font-size: 24px;
+          font-weight: bold;
+          color: white;
+        }
+      
+        
         @media (max-width: 768px) {
           .auth-buttons {
             gap: 8px;
@@ -361,6 +423,14 @@ function Navbar() {
           
           .user-profile span {
             display: none;
+          }
+          
+          .logo img {
+            height: 30px;
+          }
+          
+          .logo span {
+            font-size: 20px;
           }
         }
       `}</style>

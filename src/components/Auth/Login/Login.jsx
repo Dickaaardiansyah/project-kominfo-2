@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loginUser } from '../../../data/userLogin'; // Import API function
+import { loginUser, getCurrentUser } from '../../../data/userLogin'; // Import API function
 import '../../../styles/login.css'; 
 
 function Login() {
@@ -13,6 +13,7 @@ function Login() {
   const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // State untuk show/hide password
 
   useEffect(() => {
     const { email, password, terms } = form;
@@ -21,10 +22,19 @@ function Login() {
 
   // Check jika sudah login, redirect ke home
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      navigate('/'); // Redirect ke home jika sudah login
-    }
+    const checkLoginStatus = async () => {
+      try {
+        const userResult = await getCurrentUser();
+        if (userResult.success) {
+          navigate('/'); // Redirect ke home jika sudah login
+        }
+      } catch (error) {
+        // User not logged in, stay on login page
+        console.log('User not logged in');
+      }
+    };
+
+    checkLoginStatus();
   }, [navigate]);
 
   const handleChange = (e) => {
@@ -38,6 +48,10 @@ function Login() {
     if (error) {
       setError('');
     }
+  };
+
+  const toggleShowPassword = () => {
+    setShowPassword(prev => !prev);
   };
 
   const handleSubmit = async (e) => {
@@ -58,7 +72,9 @@ function Login() {
       alert(`Login berhasil! Selamat datang ${result.user?.name || form.email}`);
       
       // Trigger custom event untuk update navbar
-      window.dispatchEvent(new Event('userLoggedIn'));
+      window.dispatchEvent(new CustomEvent('userLoggedIn', { 
+        detail: { user: result.user } 
+      }));
       
       // Redirect ke home
       navigate('/');
@@ -114,16 +130,27 @@ function Login() {
 
         <div className="form-group">
           <label className="form-label">Password</label>
-          <input
-            type="password"
-            className="form-input"
-            name="password"
-            placeholder="Masukkan password"
-            value={form.password}
-            onChange={handleChange}
-            disabled={loading}
-            required
-          />
+          <div className="password-input-wrapper">
+            <input
+              type={showPassword ? "text" : "password"}
+              className="form-input password-input"
+              name="password"
+              placeholder="Masukkan password"
+              value={form.password}
+              onChange={handleChange}
+              disabled={loading}
+              required
+            />
+            <button
+              type="button"
+              className="password-toggle-btn"
+              onClick={toggleShowPassword}
+              disabled={loading}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+            </button>
+          </div>
         </div>
 
         <label className="checkbox-container">
@@ -178,19 +205,6 @@ function Login() {
         </a>
       </p>
 
-      {/* Demo credentials - hapus di production */}
-      <div style={{
-        marginTop: '20px',
-        padding: '15px',
-        backgroundColor: '#f8f9fa',
-        borderRadius: '8px',
-        fontSize: '12px',
-        color: '#666'
-      }}>
-        <strong>Demo Account:</strong><br />
-        Email: maulana@example.com<br />
-        Password: password123
-      </div>
     </div>
   );
 }

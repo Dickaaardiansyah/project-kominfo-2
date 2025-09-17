@@ -47,10 +47,6 @@
     transform: scale(1.05);
   }
   
-  .logo::before {
-    content: '🐠';
-    font-size: 1.5rem;
-  }
   
   .nav-menu {
     display: flex;

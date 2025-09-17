@@ -209,6 +209,7 @@ export const savePredictionToCatalog = async (req, res) => {
 // SIMPLIFIED getAllCatalogEntries - Handle token internally
 import jwt from 'jsonwebtoken';
 
+// FIXED: getAllCatalogEntries dengan token extraction dari cookies
 export const getAllCatalogEntries = async (req, res) => {
     try {
         console.log('🔍 getAllCatalogEntries called');
@@ -224,18 +225,30 @@ export const getAllCatalogEntries = async (req, res) => {
 
         const offset = (page - 1) * limit;
 
-        // MANUAL TOKEN HANDLING - Extract user ID if token exists
+        // FIXED: EXTRACT TOKEN FROM COOKIES (not Authorization header)
         let userId = null;
         let userName = null;
 
         try {
-            const authHeader = req.headers['authorization'];
-            if (authHeader && authHeader.startsWith('Bearer ')) {
-                const token = authHeader.substring(7);
+            // Try to get token from cookies first (priority)
+            let token = req.cookies?.accessToken;
+
+            // If no cookie token, try Authorization header as fallback
+            if (!token) {
+                const authHeader = req.headers['authorization'];
+                if (authHeader && authHeader.startsWith('Bearer ')) {
+                    token = authHeader.substring(7);
+                }
+            }
+
+            if (token) {
+                console.log('🍪 Token source:', req.cookies?.accessToken ? 'cookie' : 'header');
+                console.log('🔑 Extracted token:', token.substring(0, 20) + '...');
+
                 const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
                 userId = decoded.userId;
                 userName = decoded.name;
-                console.log('✅ Token decoded successfully for user:', userId);
+                console.log('✅ Token verified for user:', userId);
             } else {
                 console.log('ℹ️ No token provided');
             }
@@ -732,37 +745,37 @@ export const rejectCatalogRequest = async (req, res) => {
 };
 
 export const uploadKTP = async (req, res) => {
-  try {
-    const userId = req.userId;
-    const file = req.file;
+    try {
+        const userId = req.userId;
+        const file = req.file;
 
-    if (!file) {
-      return res.status(400).json({ msg: "File KTP harus diupload" });
+        if (!file) {
+            return res.status(400).json({ msg: "File KTP harus diupload" });
+        }
+
+        // Tambah validasi tipe file
+        if (!file.mimetype.startsWith('image/')) {
+            return res.status(400).json({ msg: "File harus berupa gambar (jpg/png)" });
+        }
+
+        const user = await Users.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ msg: "User tidak ditemukan" });
+        }
+
+        const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+        await user.update({
+            ktp_image_path: file.path,
+            ktp_image_url: `${baseUrl}/uploads/${file.filename}`
+        });
+
+        res.status(200).json({
+            msg: "KTP berhasil diupload",
+            ktpUrl: user.ktp_image_url
+        });
+    } catch (error) {
+        console.error('Error uploading KTP:', error);
+        res.status(500).json({ msg: "Server error" });
     }
-
-    // Tambah validasi tipe file
-    if (!file.mimetype.startsWith('image/')) {
-      return res.status(400).json({ msg: "File harus berupa gambar (jpg/png)" });
-    }
-
-    const user = await Users.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({ msg: "User tidak ditemukan" });
-    }
-
-    const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
-    await user.update({
-      ktp_image_path: file.path,
-      ktp_image_url: `${baseUrl}/uploads/${file.filename}`
-    });
-
-    res.status(200).json({
-      msg: "KTP berhasil diupload",
-      ktpUrl: user.ktp_image_url
-    });
-  } catch (error) {
-    console.error('Error uploading KTP:', error);
-    res.status(500).json({ msg: "Server error" });
-  }
 };
 

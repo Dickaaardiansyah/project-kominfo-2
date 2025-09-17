@@ -323,20 +323,41 @@ export const saveScan = async (req, res) => {
 // Save to catalog (sama seperti saveScan tapi bisa ditambah field khusus catalog)
 export const saveToCatalog = async (req, res) => {
   try {
-    console.log('=== Save to Catalog (Database) ===');
-    console.log('Body:', req.body);
-    console.log('File:', req.file);
+    console.log('=== SAVE TO CATALOG DEBUG ===');
+    console.log('User from middleware:', {
+      userId: req.userId,
+      email: req.email, 
+      name: req.name
+    });
 
-    // Get user ID dari token (atau fallback)
-    let userId = getUserIdFromToken(req);
+    // CRITICAL: Gunakan userId dari verifyToken middleware
+    const userId = req.userId; // Dari middleware, bukan dari helper function
     
-    // Jika tidak ada token, coba ambil dari body atau gunakan default
     if (!userId) {
-      userId = req.body.userId || req.user?.id || 1; // Fallback ke user ID 1
-      console.log('Using fallback userId:', userId);
+      console.error('❌ No user ID from middleware!');
+      return res.status(401).json({
+        status: 'error',
+        message: 'User tidak teridentifikasi. Silakan login ulang.'
+      });
     }
 
-    // Validasi input
+    // Verify user exists and has permission
+    const user = await Users.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User tidak ditemukan'
+      });
+    }
+
+    // Check catalog access permission
+    if (user.role !== 'contributor' && user.role !== 'admin') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Akses ditolak. Anda perlu menjadi kontributor untuk menambah ke katalog.'
+      });
+    }
+
     const {
       fish_name,
       predicted_class,
@@ -354,59 +375,68 @@ export const saveToCatalog = async (req, res) => {
       });
     }
 
-    // Handle image - convert to base64
+    // Handle image conversion
     let fishImageBase64 = null;
     if (req.file) {
       fishImageBase64 = await convertImageToBase64(req.file.path);
       
-      // Copy to permanent folder
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const extension = path.extname(req.file.originalname);
-      const newFilename = `catalog_${timestamp}${extension}`;
+      const newFilename = `catalog_${userId}_${timestamp}${extension}`; // Include userId in filename
       await copyImageToDataFolder(req.file.path, newFilename);
     }
 
-    // Prepare data untuk catalog (sama seperti scan tapi dengan notes khusus)
+    // Prepare catalog data dengan userId yang benar
     const catalogData = {
-      userId: userId,
+      userId: userId, // CRITICAL: Gunakan userId dari middleware
       predictedFishName: fish_name || predicted_class,
-      probability: parseFloat(confidence) / 100, // Convert dari percentage ke decimal
+      namaIkan: fish_name, // Untuk catalog entries
+      kategori: konsumsi === 'Dapat dikonsumsi' ? 'Ikan Konsumsi' : 'Ikan Hias',
+      probability: parseFloat(confidence) / 100,
       habitat: habitat || 'Tidak diketahui',
       consumptionSafety: konsumsi || 'Tidak diketahui',
       fishImage: fishImageBase64,
-      notes: notes || `CATALOG ITEM - Top 3 predictions: ${top_predictions || '[]'}`
+      notes: notes || `CATALOG ITEM - Top 3 predictions: ${top_predictions || '[]'}`,
+      deskripsiTambahan: notes ? notes.split('|')[0].replace('CATALOG ITEM - ', '') : '',
+      lokasiPenangkapan: notes ? (notes.split('|')[1]?.replace('Lokasi: ', '') || '') : '',
+      tanggalDitemukan: notes ? (notes.split('|')[2]?.replace('Tanggal: ', '') || '') : '',
+      kondisiIkan: notes ? (notes.split('|')[3]?.replace('Kondisi: ', '') || 'mati') : 'mati'
     };
 
-    console.log('Saving to catalog (database):', {
-      ...catalogData,
-      fishImage: fishImageBase64 ? '[BASE64_DATA]' : null // Hide base64 in logs
+    console.log('📝 Saving catalog data:', {
+      userId: catalogData.userId,
+      fish_name: catalogData.predictedFishName,
+      namaIkan: catalogData.namaIkan
     });
 
-    // Simpan ke database (table yang sama, tapi bisa dibedakan dari notes)
+    // Simpan ke database dengan userId yang benar
     const savedCatalog = await FishPredictions.create(catalogData);
 
-    console.log('Data saved to catalog successfully:', savedCatalog.id);
+    console.log('✅ Catalog saved successfully:', {
+      id: savedCatalog.id,
+      userId: savedCatalog.userId,
+      fishName: savedCatalog.namaIkan
+    });
 
-    // Response sukses
     res.json({
       status: 'success',
-      message: 'Data berhasil ditambahkan ke katalog',
+      message: `Data berhasil ditambahkan ke katalog oleh ${user.name}`,
       success: true,
       data: {
         id: savedCatalog.id,
-        fish_name: savedCatalog.predictedFishName,
+        userId: savedCatalog.userId, // Return untuk verifikasi
+        fish_name: savedCatalog.namaIkan,
         predicted_class: savedCatalog.predictedFishName,
         confidence: (savedCatalog.probability * 100).toFixed(2) + '%',
         habitat: savedCatalog.habitat,
         consumption_safety: savedCatalog.consumptionSafety,
-        prediction_date: savedCatalog.predictionDate,
-        prediction_time: savedCatalog.predictionTime,
-        created_at: savedCatalog.createdAt
+        created_at: savedCatalog.createdAt,
+        contributor: user.name
       }
     });
 
   } catch (error) {
-    console.error('Error saving to catalog:', error);
+    console.error('❌ Error saving to catalog:', error);
     res.status(500).json({
       status: 'error',
       message: `Gagal menambahkan ke katalog: ${error.message}`,

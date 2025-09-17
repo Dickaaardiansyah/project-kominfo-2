@@ -1,4 +1,4 @@
-// Debug dan perbaiki MarketplaceContent.jsx - WITH REAL CATALOG DATA
+// MarketplaceContent.jsx - UPDATED to use HTTP Cookies instead of localStorage
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingBag } from 'lucide-react';
@@ -43,19 +43,105 @@ function MarketplaceContent({
     productsCount: products.length
   });
 
-  // LOAD status dari localStorage saat komponen mount
-  useEffect(() => {
-    const catalogRequestStatus = localStorage.getItem('catalogRequestSubmitted');
-    if (catalogRequestStatus === 'true') {
-      setCatalogRegistrationComplete(true);
-      console.log('✅ Found existing catalog request status from localStorage');
-    }
+  // ⭐ NEW: Cookie-based status management API calls
+  const getCatalogStatusFromCookies = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/catalog/status', {
+        method: 'GET',
+        credentials: 'include', // Include HTTP cookies
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
-    const approvalStatus = localStorage.getItem('adminApprovalStatus');
-    if (approvalStatus) {
-      setAdminApprovalStatus(approvalStatus);
-      console.log('✅ Found existing admin approval status:', approvalStatus);
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Got catalog status from cookies:', result);
+        
+        return {
+          catalogRequestSubmitted: result.data.catalogRequestSubmitted || false,
+          adminApprovalStatus: result.data.adminApprovalStatus || 'pending'
+        };
+      } else {
+        console.log('⚠️ Failed to get status from cookies, using defaults');
+        return {
+          catalogRequestSubmitted: false,
+          adminApprovalStatus: 'pending'
+        };
+      }
+    } catch (error) {
+      console.error('❌ Error getting catalog status from cookies:', error);
+      return {
+        catalogRequestSubmitted: false,
+        adminApprovalStatus: 'pending'
+      };
     }
+  };
+
+  const setCatalogStatusToCookies = async (status) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/catalog/status', {
+        method: 'POST',
+        credentials: 'include', // Include HTTP cookies
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(status)
+      });
+
+      if (response.ok) {
+        console.log('✅ Catalog status saved to cookies:', status);
+        return true;
+      } else {
+        console.log('❌ Failed to save status to cookies');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error saving catalog status to cookies:', error);
+      return false;
+    }
+  };
+
+  const clearCatalogStatusFromCookies = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/catalog/status', {
+        method: 'DELETE',
+        credentials: 'include', // Include HTTP cookies
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        console.log('✅ Catalog status cleared from cookies');
+        return true;
+      } else {
+        console.log('❌ Failed to clear status from cookies');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error clearing catalog status from cookies:', error);
+      return false;
+    }
+  };
+
+  // UPDATED: Load status from HTTP cookies instead of localStorage
+  useEffect(() => {
+    const loadCatalogStatusFromCookies = async () => {
+      const status = await getCatalogStatusFromCookies();
+      
+      if (status.catalogRequestSubmitted) {
+        setCatalogRegistrationComplete(true);
+        console.log('✅ Found existing catalog request status from cookies');
+      }
+
+      if (status.adminApprovalStatus) {
+        setAdminApprovalStatus(status.adminApprovalStatus);
+        console.log('✅ Found existing admin approval status from cookies:', status.adminApprovalStatus);
+      }
+    };
+
+    loadCatalogStatusFromCookies();
   }, []);
 
   // RESET status when switching to catalog mode for first time
@@ -64,15 +150,20 @@ function MarketplaceContent({
       setRegistrationPurpose('catalog');
       console.log('✅ Set registration purpose to: catalog (detected from URL or mode)');
 
-      const catalogRequestStatus = localStorage.getItem('catalogRequestSubmitted');
-      if (!catalogRequestStatus || catalogRequestStatus !== 'true') {
-        console.log('🔄 Resetting catalog status for new user');
-        setCatalogRegistrationComplete(false);
-        setAdminApprovalStatus('pending');
-        setRegistrationStep('prompt');
+      const checkAndResetStatus = async () => {
+        const status = await getCatalogStatusFromCookies();
+        
+        if (!status.catalogRequestSubmitted) {
+          console.log('🔄 Resetting catalog status for new user');
+          setCatalogRegistrationComplete(false);
+          setAdminApprovalStatus('pending');
+          setRegistrationStep('prompt');
 
-        localStorage.removeItem('adminApprovalStatus');
-      }
+          await clearCatalogStatusFromCookies();
+        }
+      };
+
+      checkAndResetStatus();
     } else {
       setRegistrationPurpose('marketplace');
       console.log('✅ Set registration purpose to: marketplace');
@@ -84,34 +175,35 @@ function MarketplaceContent({
     }
   }, [catalogRegistrationMode, location.state, location.pathname]);
 
-  // ⭐ NEW: Function to fetch real catalog data from API
+  // ⭐ Function to fetch real catalog data from API
   const fetchCatalogData = async (myDataOnly = false) => {
     try {
       setIsLoadingProducts(true);
-      console.log(`🔄 Mengambil data katalog ${myDataOnly ? 'pribadi' : 'semua'} dari API...`);
+      console.log(`📄 Mengambil data katalog ${myDataOnly ? 'PRIBADI' : 'SEMUA'} dari API...`);
 
-      const token = localStorage.getItem('token');
       const headers = {
         'Content-Type': 'application/json',
       };
 
-      // Tambahkan header Authorization jika token tersedia
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      let apiUrl;
+      if (myDataOnly) {
+        // BACK TO ORIGINAL: Route dengan parameter my_data_only=true
+        apiUrl = `http://localhost:5000/api/catalog/entries?my_data_only=true&limit=100`;
+        console.log('🔒 Mode: MARKETPLACE - Data pribadi user saja');
+      } else {
+        // Route umum untuk semua data
+        apiUrl = `http://localhost:5000/api/catalog/entries?limit=100`;
+        console.log('🌐 Mode: HOME - Semua data katalog dari semua user');
       }
 
-      // Buat query string
-      const queryParams = new URLSearchParams({ limit: 50 });
-      if (myDataOnly && token) {
-        queryParams.append('my_data_only', 'true');
-      }
-
-      const response = await fetch(`http://localhost:5000/api/catalog/entries?${queryParams.toString()}`, {
+      const response = await fetch(apiUrl, {
         method: 'GET',
+        credentials: 'include', // Use cookies for authentication
         headers,
       });
 
       console.log('📡 Status respons API:', response.status);
+      console.log('🔍 Request URL:', apiUrl);
 
       if (response.ok) {
         const result = await response.json();
@@ -124,7 +216,7 @@ function MarketplaceContent({
           // Transformasi data dari database ke format produk marketplace
           const transformedProducts = result.data.map(catalogItem => ({
             id: catalogItem.id,
-            title: catalogItem.namaIkan || catalogItem.predictedFishName || 'I WTkan Tidak Dikenal',
+            title: catalogItem.namaIkan || catalogItem.predictedFishName || 'Ikan Tidak Dikenal',
             description: catalogItem.deskripsiTambahan || `${catalogItem.predictedFishName} - ${catalogItem.habitat || 'Habitat tidak diketahui'}`,
             price: generateRandomPrice(),
             originalPrice: Math.random() > 0.7 ? generateRandomPrice(true) : null,
@@ -167,19 +259,17 @@ function MarketplaceContent({
     }
   };
 
-  // Helper function to generate random price for display
+  // Helper functions remain the same
   const generateRandomPrice = (isOriginal = false) => {
     const basePrice = Math.floor(Math.random() * 50000) + 15000; // 15k-65k
     const finalPrice = isOriginal ? basePrice + 5000 : basePrice;
     return `Rp ${finalPrice.toLocaleString('id-ID')}`;
   };
 
-  // Helper function to generate random rating
   const generateRandomRating = () => {
     return parseFloat((Math.random() * 1.5 + 3.5).toFixed(1)); // 3.5-5.0
   };
 
-  // Helper function to map database category to marketplace filter
   const mapCategoryToFilter = (kategori) => {
     const categoryMap = {
       'Ikan Konsumsi': 'terpopuler',
@@ -190,7 +280,6 @@ function MarketplaceContent({
     return categoryMap[kategori] || 'all';
   };
 
-  // Helper function to generate fish image URL
   const generateFishImage = () => {
     const fishImages = [
       "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=300&h=200&fit=crop",
@@ -202,72 +291,15 @@ function MarketplaceContent({
     return fishImages[Math.floor(Math.random() * fishImages.length)];
   };
 
-  // ⭐ DEBUG: Function to test API directly
-  const testAPIConnection = async () => {
-    console.log('🧪 Testing API connection directly...');
-
-    try {
-      // Test 1: Basic API call
-      const response = await fetch('http://localhost:5000/api/catalog/entries');
-      console.log('🔗 API Response status:', response.status);
-      console.log('🔗 API Response headers:', response.headers);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('📦 Raw API Data:', data);
-        return data;
-      } else {
-        console.error('❌ API Error:', response.status, response.statusText);
-        const errorText = await response.text();
-        console.error('❌ Error body:', errorText);
-      }
-    } catch (error) {
-      console.error('🚨 Network Error:', error);
-      console.error('🚨 Error details:', error.message);
-    }
-
-    // Test 2: Check if server is running
-    try {
-      console.log('🏥 Testing server health...');
-      const healthCheck = await fetch('http://localhost:5000/users', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || 'test'}`
-        }
-      });
-      console.log('🏥 Server health status:', healthCheck.status);
-    } catch (healthError) {
-      console.error('🚨 Server might not be running:', healthError.message);
-    }
-  };
-
-  // ⭐ DEBUG: Add manual test button (temporary)
-  const handleTestAPI = async () => {
-    console.log('🔧 MANUAL API TEST STARTED');
-    const result = await testAPIConnection();
-
-    if (result && result.data) {
-      alert(`API Test Result:\n\nStatus: SUCCESS\nData Count: ${result.data.length}\n\nCheck console for details`);
-    } else {
-      alert('API Test Result:\n\nStatus: FAILED\n\nCheck console for error details');
-    }
-  };
-
-  // FUNGSI untuk check approval status dari server (OPTIMIZED)
+  // UPDATED: Check approval status from cookies instead of localStorage
   const checkApprovalStatus = async (showLoading = false) => {
     try {
       if (showLoading) setIsCheckingApproval(true);
 
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        console.log('❌ No token found');
-        return;
-      }
-
       const response = await fetch('http://localhost:5000/api/catalog/approval-status', {
         method: 'GET',
+        credentials: 'include', // Use cookies
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -280,7 +312,13 @@ function MarketplaceContent({
         if (serverStatus !== adminApprovalStatus) {
           console.log(`🔄 Status changed: ${adminApprovalStatus} → ${serverStatus}`);
           setAdminApprovalStatus(serverStatus);
-          localStorage.setItem('adminApprovalStatus', serverStatus);
+          
+          // Save to cookies instead of localStorage
+          await setCatalogStatusToCookies({
+            catalogRequestSubmitted: true,
+            adminApprovalStatus: serverStatus
+          });
+          
           if (serverStatus === 'approved') {
             console.log('🎉 User approved by admin - will load products!');
             setRegistrationPurpose('marketplace');
@@ -319,26 +357,17 @@ function MarketplaceContent({
     }
   }, [location.pathname]);
 
-  // FUNGSI untuk check REAL approval status dari database
+  // UPDATED: Check REAL approval status from database with cookies
   const checkRealApprovalStatus = async (showLoading = false) => {
     try {
       if (showLoading) setIsCheckingApproval(true);
-
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        console.log('❌ No token found');
-        setAdminApprovalStatus('pending');
-        localStorage.setItem('adminApprovalStatus', 'pending');
-        return;
-      }
 
       console.log('🔍 Checking REAL approval status from database...');
 
       const response = await fetch('http://localhost:5000/api/catalog/my-status', {
         method: 'GET',
+        credentials: 'include', // Use cookies
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -352,16 +381,22 @@ function MarketplaceContent({
         const hasRequest = dbStatus !== 'none';
         if (hasRequest) {
           setCatalogRegistrationComplete(true);
-          localStorage.setItem('catalogRequestSubmitted', 'true');
+          await setCatalogStatusToCookies({
+            catalogRequestSubmitted: true,
+            adminApprovalStatus: dbStatus
+          });
         } else {
           setCatalogRegistrationComplete(false);
-          localStorage.removeItem('catalogRequestSubmitted');
+          await clearCatalogStatusFromCookies();
         }
 
         if (dbStatus !== adminApprovalStatus) {
           console.log(`🔄 Status updated from database: ${adminApprovalStatus} → ${dbStatus}`);
           setAdminApprovalStatus(dbStatus);
-          localStorage.setItem('adminApprovalStatus', dbStatus);
+          await setCatalogStatusToCookies({
+            catalogRequestSubmitted: hasRequest,
+            adminApprovalStatus: dbStatus
+          });
         }
       } else {
         console.log('❌ Failed to check approval status from database:', response.status);
@@ -375,75 +410,65 @@ function MarketplaceContent({
 
   // IMMEDIATE check saat page load/refresh + verify with server
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const verifyCatalogStatusWithServer = async () => {
+      try {
+        console.log('🔍 Verifying catalog status with server...');
 
-    if (token) {
-      console.log('🚀 Page loaded - verifying catalog status with server...');
-      verifyCatalogStatusWithServer();
-    }
-  }, []);
-
-  // FUNGSI untuk verify status dengan server (lebih robust)
-  const verifyCatalogStatusWithServer = async () => {
-    try {
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        console.log('❌ No token found');
-        return;
-      }
-
-      console.log('🔍 Verifying catalog status with server...');
-
-      const response = await fetch('http://localhost:5000/api/catalog/my-status', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Server catalog status:', result);
-
-        const serverStatus = result.data?.request_status || 'pending';
-        const hasRequest = serverStatus !== 'none';
-
-        if (hasRequest) {
-          setCatalogRegistrationComplete(true);
-          localStorage.setItem('catalogRequestSubmitted', 'true');
-          if (serverStatus !== adminApprovalStatus) {
-            setAdminApprovalStatus(serverStatus);
-            localStorage.setItem('adminApprovalStatus', serverStatus);
+        const response = await fetch('http://localhost:5000/api/catalog/my-status', {
+          method: 'GET',
+          credentials: 'include', // Use cookies
+          headers: {
+            'Content-Type': 'application/json'
           }
-          if (serverStatus === 'approved') {
-            setRegistrationPurpose('marketplace');
-            if (location.pathname.includes('/katalog/daftar')) {
-              navigate('/marketplace');
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ Server catalog status:', result);
+
+          const serverStatus = result.data?.request_status || 'pending';
+          const hasRequest = serverStatus !== 'none';
+
+          if (hasRequest) {
+            setCatalogRegistrationComplete(true);
+            await setCatalogStatusToCookies({
+              catalogRequestSubmitted: true,
+              adminApprovalStatus: serverStatus
+            });
+            
+            if (serverStatus !== adminApprovalStatus) {
+              setAdminApprovalStatus(serverStatus);
             }
+            if (serverStatus === 'approved') {
+              setRegistrationPurpose('marketplace');
+              if (location.pathname.includes('/katalog/daftar')) {
+                navigate('/marketplace');
+              }
+            }
+          } else {
+            console.log('🔄 Resetting status - no request found');
+            setCatalogRegistrationComplete(false);
+            setAdminApprovalStatus('pending');
+            setRegistrationStep('prompt');
+            await clearCatalogStatusFromCookies();
           }
         } else {
-          console.log('🔄 Resetting status - no request found');
-          setCatalogRegistrationComplete(false);
-          setAdminApprovalStatus('pending');
-          setRegistrationStep('prompt');
-          localStorage.removeItem('catalogRequestSubmitted');
-          localStorage.removeItem('adminApprovalStatus');
+          console.log('❌ Failed to verify catalog status with server');
         }
-      } else {
-        console.log('❌ Failed to verify catalog status with server');
+      } catch (error) {
+        console.error('❌ Error verifying catalog status:', error);
       }
-    } catch (error) {
-      console.error('❌ Error verifying catalog status:', error);
-    }
-  };
+    };
 
-  // ⭐ UPDATED: Load REAL catalog data instead of sample data
+    console.log('🚀 Page loaded - verifying catalog status with server...');
+    verifyCatalogStatusWithServer();
+  }, []);
+
+  // ⭐ UPDATED: Load data katalog sesuai konteks halaman
   useEffect(() => {
     if (location.pathname === '/marketplace' || adminApprovalStatus === 'approved') {
-      console.log('📦 Memuat data katalog pengguna dari database...');
-      fetchCatalogData(true); // Hanya ambil data pengguna
+      console.log('📦 Memuat data katalog PRIBADI dari database...');
+      fetchCatalogData(true); // TRUE = hanya data user sendiri untuk marketplace
     } else {
       setProducts([]);
       setFilteredProducts([]);
@@ -540,26 +565,18 @@ function MarketplaceContent({
   };
 
   const handleRegisterClick = () => {
-    console.log('🔤 Register clicked, going to upload-id step');
+    console.log('📤 Register clicked, going to upload-id step');
     setRegistrationStep('upload-id');
   };
 
   const submitCatalogRequest = async () => {
     try {
-      const token = localStorage.getItem('token');
-
-      if (!token) {
-        alert('Silakan login terlebih dahulu');
-        navigate('/login');
-        return;
-      }
-
       console.log('📨 Submitting catalog request...');
 
       const response = await fetch('http://localhost:5000/api/catalog/request-access', {
         method: 'POST',
+        credentials: 'include', // Use cookies
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -572,35 +589,23 @@ function MarketplaceContent({
       if (response.ok) {
         console.log('✅ Catalog request successful:', result);
 
+        // Send email notification
         try {
-          const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-          const userName = userInfo.name || 'User';
-          const userEmail = userInfo.email || '';
+          const emailResponse = await fetch('http://localhost:5000/api/email/catalog-review', {
+            method: 'POST',
+            credentials: 'include', // Use cookies
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+          });
 
-          if (userEmail) {
-            console.log('📧 Sending review notification email...');
+          const emailResult = await emailResponse.json();
 
-            const emailResponse = await fetch('http://localhost:5000/api/email/catalog-review', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                email: userEmail,
-                name: userName
-              })
-            });
-
-            const emailResult = await emailResponse.json();
-
-            if (emailResponse.ok && emailResult.success) {
-              console.log('✅ Review notification email sent:', emailResult.messageId);
-            } else {
-              console.log('⚠️ Failed to send email notification:', emailResult.msg);
-            }
+          if (emailResponse.ok && emailResult.success) {
+            console.log('✅ Review notification email sent:', emailResult.messageId);
           } else {
-            console.log('⚠️ No user email found, skipping email notification');
+            console.log('⚠️ Failed to send email notification:', emailResult.msg);
           }
         } catch (emailError) {
           console.log('⚠️ Email sending error:', emailError.message);
@@ -608,8 +613,11 @@ function MarketplaceContent({
 
         alert(`✅ Request catalog berhasil dikirim!\n\n${result.msg}\n\n📧 Email notifikasi telah dikirim ke email Anda.`);
 
-        localStorage.setItem('catalogRequestSubmitted', 'true');
-        localStorage.setItem('adminApprovalStatus', 'pending');
+        // Save to cookies instead of localStorage
+        await setCatalogStatusToCookies({
+          catalogRequestSubmitted: true,
+          adminApprovalStatus: 'pending'
+        });
 
         setCatalogRegistrationComplete(true);
         setAdminApprovalStatus('pending');
@@ -640,30 +648,34 @@ function MarketplaceContent({
     setRegistrationStep('prompt');
   };
 
-  const handleClearCatalogStatus = () => {
+  // UPDATED: Clear catalog status from cookies
+  const handleClearCatalogStatus = async () => {
     console.log('🗑️ Clearing ALL catalog status...');
 
-    localStorage.removeItem('catalogRequestSubmitted');
-    localStorage.removeItem('adminApprovalStatus');
+    await clearCatalogStatusFromCookies();
 
     setCatalogRegistrationComplete(false);
     setAdminApprovalStatus('pending');
     setRegistrationStep('prompt');
 
-    setTimeout(() => {
-      verifyCatalogStatusWithServer();
+    setTimeout(async () => {
+      await checkRealApprovalStatus();
     }, 500);
 
     alert('🔄 Status cleared! Page akan refresh status dari server.');
   };
 
-  const handleSimulateApproval = () => {
+  // UPDATED: Simulate approval in cookies
+  const handleSimulateApproval = async () => {
     setAdminApprovalStatus('approved');
-    localStorage.setItem('adminApprovalStatus', 'approved');
+    await setCatalogStatusToCookies({
+      catalogRequestSubmitted: true,
+      adminApprovalStatus: 'approved'
+    });
     alert('✅ Simulasi: Admin telah menyetujui akun Anda!');
   };
 
-  // All the existing condition rendering logic remains the same...
+  // All existing conditional rendering logic remains the same...
   // (keeping all the existing conditional rendering for upload-id, rejected, pending, approved redirect, etc.)
 
   if (registrationStep === 'upload-id') {
@@ -911,7 +923,7 @@ function MarketplaceContent({
   }
 
   if (registrationPurpose === 'catalog' && !catalogRegistrationComplete) {
-    console.log('🔍 Rendering Catalog Registration Prompt');
+    console.log('📝 Rendering Catalog Registration Prompt');
     return (
       <RegistrationPrompt
         onRegister={handleRegisterClick}
@@ -920,13 +932,13 @@ function MarketplaceContent({
   }
 
   if (registrationPurpose === 'marketplace' && !isRegistered) {
-    console.log('🔍 AUTO-REGISTER for marketplace mode');
+    console.log('📝 AUTO-REGISTER for marketplace mode');
     setIsRegistered(true);
   }
 
-  // ⭐ MAIN MARKETPLACE RENDER - Now with real data
+  // ⭐ MAIN MARKETPLACE RENDER - Now with real data and cookies
   if (location.pathname === '/marketplace') {
-    console.log('🛒 Rendering Marketplace with REAL data, products count:', products.length);
+    console.log('🛒 Rendering Marketplace with REAL data and COOKIES, products count:', products.length);
 
     const isCatalogApproved = adminApprovalStatus === 'approved';
 
@@ -940,7 +952,6 @@ function MarketplaceContent({
           onClearStatus={handleClearCatalogStatus}
           onSimulateApproval={handleSimulateApproval}
           onCheckDatabase={() => checkRealApprovalStatus(true)}
-          onTestAPI={handleTestAPI}
         />
 
         {isCatalogApproved && (
@@ -953,7 +964,7 @@ function MarketplaceContent({
             textAlign: 'center'
           }}>
             <h3 style={{ color: '#065f46', fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
-              🎉 Anda adalah Kontributor Katalog yang Disetujui!
+              🎉 Anda adalah Kontributor Katalog yang Disetujui! (via Cookies)
             </h3>
             <p style={{ color: '#047857', fontSize: '14px', margin: '0 0 8px 0' }}>
               Sekarang Anda dapat menjual produk dan menambahkan ke katalog ikan
@@ -980,7 +991,7 @@ function MarketplaceContent({
                 fontWeight: '600',
                 margin: '0 0 4px 0'
               }}>
-                🛒 Selamat Datang di Marketplace!
+                🛒 Selamat Datang di Marketplace! (Cookie-based)
               </h3>
               <p style={{
                 color: '#166534',

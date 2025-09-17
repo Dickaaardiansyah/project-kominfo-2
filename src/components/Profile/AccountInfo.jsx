@@ -13,29 +13,6 @@ function AccountInfo() {
   const [infoMessage, setInfoMessage] = useState('');
   const API_BASE_URL = 'http://localhost:5000';
 
-  // Fungsi untuk memperbarui token akses menggunakan refresh token
-  const refreshAccessToken = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/token`, {
-        method: 'POST',
-        credentials: 'include', // Sertakan cookie (refreshToken ada di cookie HTTP-only)
-      });
-
-      if (!response.ok) {
-        throw new Error('Gagal memperbarui token');
-      }
-
-      const data = await response.json();
-      localStorage.setItem('token', data.accessToken); // Simpan token akses baru
-      return data.accessToken;
-    } catch (err) {
-      console.error('Kesalahan saat memperbarui token:', err);
-      setError('Sesi telah berakhir. Silakan login kembali.');
-      localStorage.removeItem('token');
-      throw err;
-    }
-  };
-
   // Validasi input
   const validateField = (field, value) => {
     switch (field) {
@@ -53,34 +30,30 @@ function AccountInfo() {
     }
   };
 
-  // Ambil data pengguna dengan refresh token otomatis jika token kedaluwarsa
+  // Ambil data pengguna menggunakan HTTP-only cookies
   useEffect(() => {
-    const fetchUserData = async (retry = true) => {
+    const fetchUserData = async () => {
       try {
-        let token = localStorage.getItem('token');
-        if (!token) {
-          setError('Silakan login kembali untuk melihat data akun');
-          setLoading(false);
-          return;
-        }
-
         setLoading(true);
+        
         const response = await fetch(`${API_BASE_URL}/users`, {
+          method: 'GET',
+          credentials: 'include', // Include HTTP-only cookies
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
 
         const data = await response.json();
+        
         if (!response.ok) {
-          if (data.msg === 'Token expired' && retry) {
-            // Perbarui token dan coba lagi
-            token = await refreshAccessToken();
-            return fetchUserData(false); // Coba sekali lagi setelah refresh
-          } else {
-            throw new Error(data.msg || 'Gagal memuat data akun');
+          if (response.status === 401) {
+            setError('Sesi telah berakhir. Silakan login kembali.');
+            // Redirect to login if needed
+            // window.location.href = '/login';
+            return;
           }
+          throw new Error(data.msg || 'Gagal memuat data akun');
         }
 
         setAccountData({
@@ -88,7 +61,9 @@ function AccountInfo() {
           password: '***********',
           email: data.email || ''
         });
-        setInfoMessage('');
+        setError('');
+        setInfoMessage('Data akun berhasil dimuat');
+        
       } catch (err) {
         setError(err.message || 'Gagal terhubung ke server');
         setInfoMessage('Pastikan server berjalan di localhost:5000');
@@ -101,20 +76,61 @@ function AccountInfo() {
     fetchUserData();
   }, []);
 
-  // Tangani pengeditan field
-  const handleEdit = (field, newValue) => {
+  // Tangani pengeditan field menggunakan HTTP-only cookies
+  const handleEdit = async (field, newValue) => {
     const validationError = validateField(field, newValue);
     if (validationError) {
       setError(validationError);
       return;
     }
 
-    setError('');
-    setInfoMessage('Perubahan disimpan sementara. Untuk memperbarui data di server, silakan registrasi ulang.');
-    setAccountData(prev => ({
-      ...prev,
-      [field]: newValue
-    }));
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Map field names to match server expectations
+      let serverField = field;
+      if (field === 'username') {
+        serverField = 'name';
+      }
+      
+      const updateData = { [serverField]: newValue };
+      console.log('Sending update data:', updateData);
+      
+      const response = await fetch(`${API_BASE_URL}/users/update`, {
+        method: 'PUT',
+        credentials: 'include', // Include HTTP-only cookies
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      const data = await response.json();
+      console.log('Server response:', data);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('Sesi telah berakhir. Silakan login kembali.');
+          return;
+        }
+        throw new Error(data.msg || data.message || `Server error: ${response.status}`);
+      }
+
+      setError('');
+      setInfoMessage('Data berhasil diperbarui!');
+      setAccountData(prev => ({
+        ...prev,
+        [field]: newValue
+      }));
+      
+    } catch (err) {
+      setError(err.message || 'Gagal terhubung ke server');
+      setInfoMessage('Pastikan server berjalan di localhost:5000');
+      console.error('Kesalahan saat memperbarui data:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const accountItems = [
@@ -124,7 +140,7 @@ function AccountInfo() {
       label: 'Nama Pengguna:',
       value: accountData.username,
       editable: true,
-      onEdit: (value) => handleEdit('username', value)
+      onEdit: (value) => handleEdit('name', value) // Map to 'name' field in API
     },
     {
       id: 'password',
@@ -198,12 +214,14 @@ function AccountInfo() {
           {...item}
         />
       ))}
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `
+      }} />
     </div>
   );
 }

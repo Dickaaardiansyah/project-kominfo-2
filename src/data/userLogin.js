@@ -2,9 +2,10 @@ import CONFIG from '../config/config';
 
 const ENDPOINTS = {
   USER_LOGIN: `${CONFIG.BASE_URL}/login`,
+  USER_PROFILE: `${CONFIG.BASE_URL}/users`,
 };
 
-// Login User Function
+// Login User Function - Cookie-based authentication
 export async function loginUser({ email, password }) {
   try {
     console.log('Attempting login with:', { email });
@@ -14,6 +15,7 @@ export async function loginUser({ email, password }) {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include', // Include cookies in request
       body: JSON.stringify({
         email,
         password,
@@ -29,15 +31,9 @@ export async function loginUser({ email, password }) {
       // Login berhasil
       console.log('Login successful!');
       
-      // Simpan data ke localStorage
-      localStorage.setItem('token', data.accessToken);
+      // Store access token in memory only (you can use a global state management like Redux/Context)
+      // For now, we'll store it temporarily in a module variable or return it to be handled by the component
       
-      // Simpan user data jika ada
-      if (data.user) {
-        localStorage.setItem('user', JSON.stringify(data.user));
-        localStorage.setItem('userId', data.user.id);
-      }
-
       return {
         success: true,
         accessToken: data.accessToken,
@@ -72,6 +68,56 @@ export async function loginUser({ email, password }) {
     return {
       success: false,
       message: errorMessage
+    };
+  }
+}
+
+// Function to get current user profile (using cookies for auth)
+export async function getCurrentUser() {
+  try {
+    const response = await fetch(ENDPOINTS.USER_PROFILE, {
+      method: 'GET',
+      credentials: 'include', // Include cookies
+    });
+
+    if (response.ok) {
+      const userData = await response.json();
+      return {
+        success: true,
+        user: userData
+      };
+    } else {
+      return {
+        success: false,
+        message: 'Failed to get user profile'
+      };
+    }
+  } catch (error) {
+    console.error('Get user error:', error);
+    return {
+      success: false,
+      message: 'Network error'
+    };
+  }
+}
+
+// Function to logout user
+export async function logoutUser() {
+  try {
+    const response = await fetch(`${CONFIG.BASE_URL}/logout`, {
+      method: 'DELETE',
+      credentials: 'include', // Include cookies
+    });
+
+    return {
+      success: response.ok,
+      message: response.ok ? 'Logout successful' : 'Logout failed'
+    };
+  } catch (error) {
+    console.error('Logout error:', error);
+    return {
+      success: false,
+      message: 'Network error during logout'
     };
   }
 }

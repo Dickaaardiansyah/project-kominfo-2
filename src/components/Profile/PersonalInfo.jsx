@@ -6,54 +6,25 @@ function PersonalInfo() {
   const [personalData, setPersonalData] = useState({
     name: '',
     phone: '',
-    birthday: localStorage.getItem('profileBirthday') || '2004-12-20',
+    birthday: '',
     gender: '',
     age: ''
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
-  const [debugInfo, setDebugInfo] = useState('');
   const [showMissingDataForm, setShowMissingDataForm] = useState(false);
   const [tempPhone, setTempPhone] = useState('');
   const [tempGender, setTempGender] = useState('');
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
-    localStorage.getItem('profileOnboardingCompleted') === 'true'
-  );
   const API_BASE_URL = 'http://localhost:5000';
-
-  // Fungsi untuk memperbarui token akses menggunakan refresh token
-  const refreshAccessToken = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/token`, {
-        method: 'POST',
-        credentials: 'include', // Sertakan cookie (refreshToken ada di cookie HTTP-only)
-      });
-
-      if (!response.ok) {
-        throw new Error('Gagal memperbarui token');
-      }
-
-      const data = await response.json();
-      localStorage.setItem('token', data.accessToken); // Simpan token akses baru
-      return data.accessToken;
-    } catch (err) {
-      console.error('Kesalahan saat memperbarui token:', err);
-      setError('Sesi telah berakhir. Silakan login kembali.');
-      localStorage.removeItem('token');
-      throw err;
-    }
-  };
 
   // Hitung usia dari tanggal lahir
   const calculateAge = (birthday) => {
     if (!birthday) {
-      setDebugInfo(prev => prev + ' [Tanggal lahir tidak tersedia, menggunakan default]');
       return '18+';
     }
     const birthDate = new Date(birthday);
     if (isNaN(birthDate)) {
-      setDebugInfo(prev => prev + ' [Format tanggal lahir tidak valid]');
       return '18+';
     }
     const today = new Date();
@@ -90,23 +61,16 @@ function PersonalInfo() {
     }
   };
 
-  // Ambil data pengguna dengan refresh token otomatis jika token kedaluwarsa
+  // Ambil data pengguna menggunakan HTTP-only cookies
   useEffect(() => {
-    const fetchUserData = async (retry = true) => {
+    const fetchUserData = async () => {
       try {
-        let token = localStorage.getItem('token');
-        if (!token) {
-          setError('Silakan login kembali untuk melihat data profil');
-          setDebugInfo('Token tidak ditemukan di localStorage');
-          setLoading(false);
-          return;
-        }
-
         setLoading(true);
-        setDebugInfo('Mengambil data pengguna...');
+        
         const response = await fetch(`${API_BASE_URL}/users`, {
+          method: 'GET',
+          credentials: 'include', // Include HTTP-only cookies
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
@@ -115,63 +79,41 @@ function PersonalInfo() {
         console.log('Respon API:', data);
 
         if (!response.ok) {
-          if (data.msg === 'Token expired' && retry) {
-            // Perbarui token dan coba lagi
-            token = await refreshAccessToken();
-            return fetchUserData(false); // Coba sekali lagi setelah refresh
-          } else {
-            throw new Error(data.msg || 'Gagal memuat data pengguna');
+          if (response.status === 401) {
+            setError('Sesi telah berakhir. Silakan login kembali.');
+            return;
           }
-        }
-
-        const birthday = localStorage.getItem('profileBirthday') || '2004-12-20';
-        
-        // Ambil phone dan gender dari respon database
-        const phone = data.phone || localStorage.getItem('profilePhone') || '';
-        const gender = data.gender || localStorage.getItem('profileGender') || '';
-
-        // Hanya set debug info jika ada data yang hilang
-        if (!data.phone && !data.gender) {
-          setDebugInfo('Beberapa data profil hilang dari database');
-        } else if (!data.phone) {
-          setDebugInfo('Data nomor telepon hilang dari database');
-        } else if (!data.gender) {
-          setDebugInfo('Data jenis kelamin hilang dari database');
-        } else {
-          setDebugInfo('');
+          throw new Error(data.msg || 'Gagal memuat data pengguna');
         }
 
         const newPersonalData = {
           name: data.name || 'Unknown',
-          phone: phone || '(tidak tersedia)',
-          birthday: birthday,
-          gender: gender || '(tidak tersedia)',
-          age: calculateAge(birthday)
+          phone: data.phone || '',
+          birthday: data.birthday || '',
+          gender: data.gender || '',
+          age: calculateAge(data.birthday)
         };
 
         setPersonalData(newPersonalData);
 
         // Perbarui nilai sementara untuk form
-        setTempPhone(phone || '');
-        setTempGender(gender || '');
+        setTempPhone(data.phone || '');
+        setTempGender(data.gender || '');
 
         // Tampilkan form hanya jika data phone/gender benar-benar tidak ada
-        if ((!data.phone && !localStorage.getItem('profilePhone')) ||
-            (!data.gender && !localStorage.getItem('profileGender'))) {
-          if (!hasCompletedOnboarding) {
-            setShowMissingDataForm(true);
-            setInfoMessage('Nomor HP atau Jenis Kelamin tidak tersedia. Silakan lengkapi data Anda.');
-          } else {
-            setInfoMessage('');
-          }
+        if (!data.phone || !data.gender) {
+          setShowMissingDataForm(true);
+          setInfoMessage('Nomor HP atau Jenis Kelamin tidak tersedia. Silakan lengkapi data Anda.');
         } else {
           setInfoMessage('Data profil berhasil dimuat dari database.');
           setShowMissingDataForm(false);
         }
+        
+        setError('');
+        
       } catch (err) {
         setError(err.message || 'Gagal terhubung ke server');
         setInfoMessage('Pastikan server berjalan di localhost:5000');
-        setDebugInfo(`Kesalahan API: ${err.message}`);
         console.error('Kesalahan saat mengambil data pengguna:', err);
       } finally {
         setLoading(false);
@@ -189,44 +131,31 @@ function PersonalInfo() {
       return;
     }
 
-    let token = localStorage.getItem('token');
-    if (!token) {
-      setError('Silakan login kembali untuk memperbarui data');
-      return;
-    }
-
     try {
       setLoading(true);
+      setError('');
+      
       const updateData = { [field]: newValue };
+      console.log('Sending update data:', updateData);
+      
       const response = await fetch(`${API_BASE_URL}/users/update`, {
         method: 'PUT',
+        credentials: 'include', // Include HTTP-only cookies
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(updateData)
       });
 
       const data = await response.json();
+      console.log('Server response:', data);
+      
       if (!response.ok) {
-        if (data.msg === 'Token expired') {
-          // Coba perbarui token dan ulangi permintaan
-          token = await refreshAccessToken();
-          const retryResponse = await fetch(`${API_BASE_URL}/users/update`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(updateData)
-          });
-
-          if (!retryResponse.ok) {
-            throw new Error((await retryResponse.json()).msg || 'Gagal memperbarui data');
-          }
-        } else {
-          throw new Error(data.msg || 'Gagal memperbarui data');
+        if (response.status === 401) {
+          setError('Sesi telah berakhir. Silakan login kembali.');
+          return;
         }
+        throw new Error(data.msg || data.message || `Server error: ${response.status}`);
       }
 
       setError('');
@@ -236,9 +165,7 @@ function PersonalInfo() {
         [field]: newValue,
         age: field === 'birthday' ? calculateAge(newValue) : prev.age
       }));
-      if (field === 'birthday') {
-        localStorage.setItem('profileBirthday', newValue);
-      }
+      
     } catch (err) {
       setError(err.message || 'Gagal terhubung ke server');
       setInfoMessage('Pastikan server berjalan di localhost:5000');
@@ -260,23 +187,25 @@ function PersonalInfo() {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Silakan login kembali untuk memperbarui data');
-        return;
-      }
-
+      setLoading(true);
+      
       const response = await fetch(`${API_BASE_URL}/users/update`, {
         method: 'PUT',
+        credentials: 'include', // Include HTTP-only cookies
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ phone: tempPhone, gender: tempGender })
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Gagal memperbarui data profil');
+        if (response.status === 401) {
+          setError('Sesi telah berakhir. Silakan login kembali.');
+          return;
+        }
+        throw new Error(data.msg || 'Gagal memperbarui data profil');
       }
 
       setPersonalData(prev => ({
@@ -284,24 +213,22 @@ function PersonalInfo() {
         phone: tempPhone,
         gender: tempGender
       }));
-      localStorage.setItem('profilePhone', tempPhone);
-      localStorage.setItem('profileGender', tempGender);
-      localStorage.setItem('profileOnboardingCompleted', 'true');
-      setHasCompletedOnboarding(true);
+      
       setShowMissingDataForm(false);
       setInfoMessage('Data profil berhasil diperbarui!');
       setError('');
+      
     } catch (err) {
       setError(err.message || 'Gagal terhubung ke server');
       setInfoMessage('Pastikan server berjalan di localhost:5000');
+    } finally {
+      setLoading(false);
     }
   };
 
   // Tangani pembatalan form data yang hilang
   const handleMissingDataCancel = () => {
     setShowMissingDataForm(false);
-    localStorage.setItem('profileOnboardingCompleted', 'true');
-    setHasCompletedOnboarding(true);
     setInfoMessage('');
   };
 
@@ -318,7 +245,7 @@ function PersonalInfo() {
       id: 'phone',
       icon: <User size={20} />,
       label: 'Nomor HP:',
-      value: personalData.phone,
+      value: personalData.phone || '(tidak tersedia)',
       editable: true,
       onEdit: (value) => handleEdit('phone', value)
     },
@@ -326,16 +253,18 @@ function PersonalInfo() {
       id: 'birthday',
       icon: <Calendar size={20} />,
       label: 'Tanggal Lahir:',
-      value: personalData.birthday,
+      value: personalData.birthday || '(tidak tersedia)',
       editable: true,
       onEdit: (value) => handleEdit('birthday', value),
-      tooltip: 'Tanggal lahir disimpan di browser Anda'
+      tooltip: 'Format: YYYY-MM-DD'
     },
     {
       id: 'gender',
       icon: <User size={20} />,
       label: 'Jenis Kelamin:',
-      value: personalData.gender,
+      value: personalData.gender === 'male' ? 'Laki-laki' : 
+             personalData.gender === 'female' ? 'Perempuan' : 
+             '(tidak tersedia)',
       editable: true,
       onEdit: (value) => handleEdit('gender', value)
     },
@@ -397,30 +326,16 @@ function PersonalInfo() {
           {infoMessage}
         </div>
       )}
-      {debugInfo && (
-        <div className="debug-info" style={{
-          backgroundColor: '#fef3c7',
-          color: '#92400e',
-          padding: '16px',
-          borderRadius: '8px',
-          marginBottom: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <span style={{ fontSize: '16px' }}>🛠️</span>
-          Debug: {debugInfo}
-        </div>
-      )}
       {showMissingDataForm && (
         <div className="missing-data-form" style={{
           backgroundColor: 'white',
           padding: '20px',
           borderRadius: '8px',
           marginBottom: '20px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          border: '1px solid #e5e7eb'
         }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
             Lengkapi Profil Anda
           </h3>
           <p style={{ fontSize: '14px', color: '#374151', marginBottom: '16px' }}>
@@ -428,7 +343,7 @@ function PersonalInfo() {
           </p>
           <form onSubmit={handleMissingDataSubmit}>
             <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '500' }}>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>
                 Nomor HP
               </label>
               <input
@@ -438,16 +353,20 @@ function PersonalInfo() {
                 placeholder="Masukkan nomor HP (min. 8 digit)"
                 style={{
                   width: '100%',
-                  padding: '8px',
+                  padding: '10px 12px',
                   border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px'
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#2563eb'}
+                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                 required
               />
             </div>
             <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '500' }}>
+              <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>
                 Jenis Kelamin
               </label>
               <select
@@ -455,11 +374,16 @@ function PersonalInfo() {
                 onChange={(e) => setTempGender(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '8px',
+                  padding: '10px 12px',
                   border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px'
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  backgroundColor: 'white',
+                  transition: 'border-color 0.2s',
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#2563eb'}
+                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                 required
               >
                 <option value="">Pilih jenis kelamin</option>
@@ -467,32 +391,50 @@ function PersonalInfo() {
                 <option value="female">Perempuan</option>
               </select>
             </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button
                 type="submit"
+                disabled={loading}
                 style={{
-                  backgroundColor: '#007AFF',
+                  backgroundColor: loading ? '#9ca3af' : '#2563eb',
                   color: 'white',
-                  padding: '8px 16px',
-                  borderRadius: '4px',
+                  padding: '10px 20px',
+                  borderRadius: '6px',
                   border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px'
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (!loading) e.target.style.backgroundColor = '#1d4ed8';
+                }}
+                onMouseOut={(e) => {
+                  if (!loading) e.target.style.backgroundColor = '#2563eb';
                 }}
               >
-                Simpan Profil
+                {loading ? 'Menyimpan...' : 'Simpan Profil'}
               </button>
               <button
                 type="button"
                 onClick={handleMissingDataCancel}
+                disabled={loading}
                 style={{
                   backgroundColor: '#6b7280',
                   color: 'white',
-                  padding: '8px 16px',
-                  borderRadius: '4px',
+                  padding: '10px 20px',
+                  borderRadius: '6px',
                   border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px'
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (!loading) e.target.style.backgroundColor = '#4b5563';
+                }}
+                onMouseOut={(e) => {
+                  if (!loading) e.target.style.backgroundColor = '#6b7280';
                 }}
               >
                 Lewati
@@ -511,11 +453,12 @@ function PersonalInfo() {
                   className="tooltip"
                   style={{
                     position: 'absolute',
-                    top: '0',
-                    right: '0',
+                    top: '8px',
+                    right: '8px',
                     fontSize: '12px',
                     color: '#6b7280',
-                    cursor: 'help'
+                    cursor: 'help',
+                    padding: '2px'
                   }}
                   title={item.tooltip}
                 >
@@ -526,21 +469,35 @@ function PersonalInfo() {
           ))}
         </div>
       )}
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
-        .tooltip:hover:after {
+        .tooltip:hover::after {
           content: attr(title);
           position: absolute;
-          top: -30px;
+          top: -35px;
           right: 0;
           background: #1f2937;
           color: white;
-          padding: 4px 8px;
+          padding: 6px 8px;
           border-radius: 4px;
           font-size: 12px;
+          white-space: nowrap;
+          z-index: 10;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .tooltip:hover::before {
+          content: '';
+          position: absolute;
+          top: -8px;
+          right: 10px;
+          width: 0;
+          height: 0;
+          border-left: 5px solid transparent;
+          border-right: 5px solid transparent;
+          border-top: 5px solid #1f2937;
           z-index: 10;
         }
       `}</style>

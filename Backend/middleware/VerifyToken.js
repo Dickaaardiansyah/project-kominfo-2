@@ -1,13 +1,19 @@
 import jwt from "jsonwebtoken";
 
 export const verifyToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    // Try to get token from cookie first, then fallback to Authorization header
+    let token = req.cookies.accessToken;
     
-    console.log('Auth header:', authHeader); // Debug log
+    // Fallback to Authorization header if cookie not present (for API compatibility)
+    if (!token) {
+        const authHeader = req.headers['authorization'];
+        token = authHeader && authHeader.split(' ')[1];
+    }
+    
+    console.log('Token source:', req.cookies.accessToken ? 'cookie' : 'header'); // Debug log
     console.log('Extracted token:', token ? token.substring(0, 20) + '...' : 'null'); // Debug log
     
-    if(token == null) {
+    if (!token) {
         console.log('No token provided'); // Debug log
         return res.status(401).json({ msg: "Token tidak tersedia" });
     }

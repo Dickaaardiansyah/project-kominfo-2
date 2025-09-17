@@ -1,4 +1,4 @@
-// routes/index.js - Updated with Catalog Permission System + Email Routes + Missing Approval Status Route
+// routes/index.js - Updated dengan Cookie Management Routes
 import express from 'express';
 import {
   getUsers,
@@ -7,7 +7,7 @@ import {
   Logout,
   verifyOTP,
   resendOTP,
-  getApprovedUsers 
+  getApprovedUsers
 } from '../controllers/Users.js';
 import {
   predictTabular,
@@ -55,7 +55,7 @@ import {
 
 import {
   getAllGalery,
-  getGaleryById, 
+  getGaleryById,
   createGalery,
   updateGalery,
   deleteGalery
@@ -86,19 +86,29 @@ router.post('/verify-otp', verifyOTP);
 router.post('/resend-otp', resendOTP);
 
 // Endpoint untuk memperbarui data profil
+// Endpoint untuk memperbarui data profil - FIXED VERSION
 router.put('/users/update', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
-    const { username, email, password, phone, gender, birthday } = req.body;
+
+    // Log untuk debugging
+    console.log('🔍 Update request from user:', userId);
+    console.log('📝 Request body:', req.body);
+
+    // Destructure dengan field names yang sesuai dengan model database
+    const { name, email, password, phone, gender, birthday } = req.body;
 
     const updateData = {};
-    if (username) {
-      if (username.length < 2) {
+
+    // Validasi dan build update object
+    if (name !== undefined) {
+      if (name.length < 2) {
         return res.status(400).json({ msg: 'Nama pengguna minimal 2 karakter' });
       }
-      updateData.name = username;
+      updateData.name = name;
     }
-    if (email) {
+
+    if (email !== undefined) {
       if (!email.includes('@')) {
         return res.status(400).json({ msg: 'Format email tidak valid' });
       }
@@ -110,13 +120,15 @@ router.put('/users/update', verifyToken, async (req, res) => {
       }
       updateData.email = email;
     }
-    if (password && password !== '***********') {
+
+    if (password !== undefined && password !== '***********') {
       if (password.length < 6) {
         return res.status(400).json({ msg: 'Password minimal 6 karakter' });
       }
       updateData.password = await bcrypt.hash(password, 10);
     }
-    if (phone) {
+
+    if (phone !== undefined) {
       if (phone.length < 8 || !/^\d+$/.test(phone)) {
         return res.status(400).json({ msg: 'Nomor HP tidak valid, minimal 8 digit dan hanya angka' });
       }
@@ -128,13 +140,15 @@ router.put('/users/update', verifyToken, async (req, res) => {
       }
       updateData.phone = phone;
     }
-    if (gender) {
+
+    if (gender !== undefined) {
       if (!['male', 'female'].includes(gender)) {
-        return res.status(400).json({ msg: 'Jenis kelamin harus Laki-laki atau Perempuan' });
+        return res.status(400).json({ msg: 'Jenis kelamin harus male atau female' });
       }
       updateData.gender = gender;
     }
-    if (birthday) {
+
+    if (birthday !== undefined) {
       const date = new Date(birthday);
       if (isNaN(date) || date > new Date()) {
         return res.status(400).json({ msg: 'Tanggal lahir tidak valid' });
@@ -142,15 +156,35 @@ router.put('/users/update', verifyToken, async (req, res) => {
       updateData.birthday = birthday;
     }
 
+    console.log('🔧 Update data to be saved:', updateData);
+
     if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ msg: 'Tidak ada data yang diperbarui' });
+      return res.status(400).json({
+        msg: 'Tidak ada data yang diperbarui',
+        debug: 'Received fields: ' + Object.keys(req.body).join(', ')
+      });
     }
 
-    await Users.update(updateData, { where: { id: userId } });
-    res.status(200).json({ msg: 'Data profil berhasil diperbarui' });
+    // Update user
+    const [affectedRows] = await Users.update(updateData, { where: { id: userId } });
+
+    if (affectedRows === 0) {
+      return res.status(404).json({ msg: 'User tidak ditemukan' });
+    }
+
+    console.log('✅ Profile updated successfully for user:', userId);
+
+    res.status(200).json({
+      msg: 'Data profil berhasil diperbarui',
+      updatedFields: Object.keys(updateData)
+    });
+
   } catch (error) {
-    console.error('Kesalahan saat memperbarui profil:', error);
-    res.status(500).json({ msg: 'Kesalahan server' });
+    console.error('❌ Kesalahan saat memperbarui profil:', error);
+    res.status(500).json({
+      msg: 'Kesalahan server',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -160,16 +194,16 @@ router.post('/predict-image', upload.single('image'), predictImage);
 
 // ==================== EXISTING SAVE ROUTES ====================
 router.post('/api/save-scan', upload.single('image'), saveScan);
-router.post('/api/save-to-catalog', upload.single('image'), saveToCatalog);
+router.post('/api/save-to-catalog', verifyToken, upload.single('image'), saveToCatalog);
 router.get('/api/get-scans', getScans);
 router.get('/api/get-catalog', getCatalog);
 
-// ==================== ⭐ NEW CATALOG PERMISSION SYSTEM ROUTES ====================
+// ==================== ⭐ CATALOG PERMISSION SYSTEM ROUTES ====================
 // USER Catalog Routes (need login)
 router.post('/api/catalog/request-access', verifyToken, requestCatalogAccess);
 router.get('/api/catalog/my-status', verifyToken, getCatalogAccessStatus);
 
-// ⭐ TAMBAH route yang hilang untuk check approval status
+// Route untuk check approval status
 router.get('/api/catalog/approval-status', verifyToken, async (req, res) => {
   try {
     console.log('🔍 Checking approval status for user:', req.userId);
@@ -195,10 +229,157 @@ router.get('/api/catalog/approval-status', verifyToken, async (req, res) => {
   }
 });
 
+// ==================== ⭐ NEW: HTTP COOKIES MANAGEMENT ROUTES ====================
+// Get catalog status from HTTP cookies
+router.get('/api/catalog/status', verifyToken, async (req, res) => {
+  try {
+    console.log('📖 Getting catalog status from cookies for user:', req.user?.email || req.userId);
+
+    // Get status from cookies
+    const catalogRequestSubmitted = req.cookies.catalogRequestSubmitted === 'true';
+    const adminApprovalStatus = req.cookies.adminApprovalStatus || 'pending';
+
+    console.log('🍪 Cookie values:', {
+      catalogRequestSubmitted,
+      adminApprovalStatus
+    });
+
+    res.json({
+      status: 'success',
+      data: {
+        catalogRequestSubmitted,
+        adminApprovalStatus
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting catalog status from cookies:', error);
+    res.status(500).json({
+      status: 'error',
+      msg: 'Failed to get catalog status'
+    });
+  }
+});
+
+// Set catalog status to HTTP cookies
+router.post('/api/catalog/status', verifyToken, async (req, res) => {
+  try {
+    const { catalogRequestSubmitted, adminApprovalStatus } = req.body;
+
+    console.log('💾 Setting catalog status to cookies for user:', req.user?.email || req.userId);
+    console.log('🍪 Setting values:', {
+      catalogRequestSubmitted,
+      adminApprovalStatus
+    });
+
+    const cookieOptions = {
+      httpOnly: true,        // Cannot be accessed by JavaScript
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      sameSite: 'lax',      // CSRF protection
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    };
+
+    // Set HTTP-only cookies
+    if (catalogRequestSubmitted !== undefined) {
+      res.cookie('catalogRequestSubmitted', catalogRequestSubmitted.toString(), cookieOptions);
+    }
+
+    if (adminApprovalStatus !== undefined) {
+      res.cookie('adminApprovalStatus', adminApprovalStatus, cookieOptions);
+    }
+
+    res.json({
+      status: 'success',
+      msg: 'Catalog status saved to cookies successfully',
+      data: {
+        catalogRequestSubmitted,
+        adminApprovalStatus
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error setting catalog status to cookies:', error);
+    res.status(500).json({
+      status: 'error',
+      msg: 'Failed to save catalog status'
+    });
+  }
+});
+
+// Clear catalog status from HTTP cookies
+router.delete('/api/catalog/status', verifyToken, async (req, res) => {
+  try {
+    console.log('🗑️ Clearing catalog status cookies for user:', req.user?.email || req.userId);
+
+    // Clear cookies by setting them to expire immediately
+    const clearCookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      expires: new Date(0) // Expire immediately
+    };
+
+    res.clearCookie('catalogRequestSubmitted', clearCookieOptions);
+    res.clearCookie('adminApprovalStatus', clearCookieOptions);
+
+    res.json({
+      status: 'success',
+      msg: 'Catalog status cookies cleared successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error clearing catalog status cookies:', error);
+    res.status(500).json({
+      status: 'error',
+      msg: 'Failed to clear catalog status'
+    });
+  }
+});
+
+// Debug endpoint to check all cookies
+router.get('/api/debug/cookies', verifyToken, async (req, res) => {
+  try {
+    console.log('🐛 Debug: Checking all cookies for user:', req.user?.email || req.userId);
+
+    const allCookies = req.cookies;
+    const catalogCookies = {
+      catalogRequestSubmitted: req.cookies.catalogRequestSubmitted,
+      adminApprovalStatus: req.cookies.adminApprovalStatus
+    };
+
+    console.log('🍪 All cookies:', allCookies);
+    console.log('🗂️ Catalog-specific cookies:', catalogCookies);
+
+    res.json({
+      status: 'success',
+      data: {
+        all_cookies: allCookies,
+        catalog_cookies: catalogCookies,
+        user: {
+          id: req.userId,
+          name: req.user?.name,
+          email: req.user?.email
+        },
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error in debug cookies:', error);
+    res.status(500).json({
+      status: 'error',
+      msg: 'Debug error'
+    });
+  }
+});
+
+// ==================== EXISTING CATALOG ROUTES ====================
 router.post('/api/catalog/save-prediction', verifyToken, savePredictionToCatalog);
 
-// PUBLIC Catalog Routes (no auth needed) 
+// ⭐ FIXED: Get catalog entries - menggunakan existing controller function
 router.get('/api/catalog/entries', getAllCatalogEntries);
+
+// ⭐ SIMPLE SOLUTION: Route wrapper untuk filter data pribadi
 router.post('/api/catalog/upload-ktp', verifyToken, upload.single('ktp'), uploadKTP);
 
 // ADMIN Catalog Routes (need admin login)
@@ -207,7 +388,7 @@ router.post('/api/catalog/admin/approve/:userId', verifyAdminToken, approveCatal
 router.post('/api/catalog/admin/reject/:userId', verifyAdminToken, rejectCatalogRequest);
 router.get('/api/catalog/admin/statistics', verifyAdminToken, getCatalogStatistics);
 
-// ==================== ⭐ NEW EMAIL NOTIFICATION ROUTES ====================
+// ==================== ⭐ EMAIL NOTIFICATION ROUTES ====================
 // Test email connection
 router.get('/api/email/test-connection', testEmailConnection);
 
@@ -374,7 +555,6 @@ router.post('/api/email/test', testEmailSending);
 // ==================== GALERY PUBLIC ROUTES (NO AUTH) ====================
 // Tambahkan setelah email routes dan sebelum admin auth routes
 
-
 // ==================== ADMIN AUTH ROUTES ====================
 router.post('/admin/create', createAdmin);
 router.post('/admin/login', loginAdmin);
@@ -398,4 +578,5 @@ router.post('/api/galery', verifyAdminToken, createGalery);
 router.put('/api/galery/:id', verifyAdminToken, updateGalery);
 router.delete('/api/galery/:id', verifyAdminToken, deleteGalery);
 router.get('/api/admin/approved-users', verifyAdminToken, getApprovedUsers);
+
 export default router;
